@@ -70,7 +70,10 @@ class GeminiProvider extends AIProvider {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const model = this.client.getGenerativeModel({ model: this.model });
+        const model = this.client.getGenerativeModel({
+          model: this.model,
+          systemInstruction: this.getSystemPrompt(),
+        });
 
         const response = await model.generateContent({
           contents: [
@@ -78,14 +81,14 @@ class GeminiProvider extends AIProvider {
               role: 'user',
               parts: [
                 {
-                  text: `${this.getSystemPrompt()}\n\nExtract and map this CSV row data:\n${JSON.stringify(row)}`,
+                  text: `Extract and map this CSV row data:\n${JSON.stringify(row)}`,
                 },
               ],
             },
           ],
           generationConfig: {
             temperature: 0.3,
-            maxOutputTokens: 500,
+            maxOutputTokens: 800,
           },
         });
 
