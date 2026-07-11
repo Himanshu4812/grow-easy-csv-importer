@@ -56,9 +56,12 @@ class MockProvider extends AIProvider {
                      [firstName, lastName].filter(Boolean).join(' ').trim() ||
                      'Valued Lead';
 
-    const rawPhone = getVal(row, 'mobile_without_country_code', 'mobile', 'phone_mobile', 'cell', 'phone', 'phone_number', 'phone number', 'contact_number', 'contact number', 'tel', 'telephone');
+    const rawPhones = getVal(row, 'mobile_without_country_code', 'mobile', 'phone_mobile', 'cell', 'phone', 'phone_number', 'phone number', 'contact_number', 'contact number', 'tel', 'telephone')
+      .split(/[,;]/).map(p => p.trim()).filter(Boolean);
+    const primaryPhone = rawPhones[0] || '';
+    const secondaryPhones = rawPhones.slice(1);
     let countryCode = getVal(row, 'country_code', 'country code', 'countrycode', 'calling_code', 'calling code');
-    let cleanMobile = rawPhone.replace(/\D/g, '');
+    let cleanMobile = primaryPhone.replace(/\D/g, '');
 
     if (cleanMobile.startsWith('91') && cleanMobile.length > 10 && !countryCode) {
       countryCode = '+91';
@@ -79,6 +82,9 @@ class MockProvider extends AIProvider {
     if (notes) crmNotesList.push(notes);
     if (secondaryEmails.length > 0) {
       crmNotesList.push(`[Secondary Emails]: ${secondaryEmails.join(', ')}`);
+    }
+    if (secondaryPhones.length > 0) {
+      crmNotesList.push(`[Secondary Phones]: ${secondaryPhones.join(', ')}`);
     }
 
     return {

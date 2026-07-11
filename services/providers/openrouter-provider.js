@@ -100,7 +100,7 @@ class OpenRouterProvider extends AIProvider {
           throw new Error('No JSON found in response');
         }
 
-        const extracted = JSON.parse(jsonMatch[0]);
+        const extracted = this.postProcessRow(JSON.parse(jsonMatch[0]));
 
         // Validate extracted data
         const validated = this.validateExtractedRow(extracted);

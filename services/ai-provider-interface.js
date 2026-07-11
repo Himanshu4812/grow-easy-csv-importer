@@ -4,6 +4,34 @@ class AIProvider {
     throw new Error('extractCRMData must be implemented by subclass');
   }
 
+  postProcessRow(row) {
+    if (row.email) {
+      row.email = row.email.trim();
+      const emails = row.email.split(/[,;]/).map(e => e.trim()).filter(Boolean);
+      if (emails.length > 1) {
+        row.email = emails[0];
+        const secondary = emails.slice(1);
+        const note = `[Secondary Emails]: ${secondary.join(', ')}`;
+        row.crm_note = row.crm_note ? `${row.crm_note}; ${note}` : note;
+      }
+    }
+
+    if (row.mobile_without_country_code) {
+      row.mobile_without_country_code = row.mobile_without_country_code.trim();
+      const phones = row.mobile_without_country_code.split(/[,;]/).map(p => p.trim()).filter(Boolean);
+      if (phones.length > 1) {
+        row.mobile_without_country_code = phones[0].replace(/\D/g, '');
+        const secondary = phones.slice(1);
+        const note = `[Secondary Phones]: ${secondary.join(', ')}`;
+        row.crm_note = row.crm_note ? `${row.crm_note}; ${note}` : note;
+      } else if (phones.length === 1) {
+        row.mobile_without_country_code = phones[0].replace(/\D/g, '');
+      }
+    }
+
+    return row;
+  }
+
   validateExtractedRow(row) {
     const CRM_STATUSES = ['GOOD_LEAD_FOLLOW_UP', 'DID_NOT_CONNECT', 'BAD_LEAD', 'SALE_DONE'];
     const DATA_SOURCES = ['leads_on_demand', 'meridian_tower', 'eden_park', 'varah_swamy', 'sarjapur_plots'];
@@ -58,7 +86,7 @@ class AIProvider {
 - country: Country name
 - lead_owner: Lead owner name (e.g. sales rep email or name)
 - crm_status: Strict enum value, must be one of: [${CRM_STATUSES.join(', ')}]
-- crm_note: Consolidated residual notes, comments, and unmapped fields
+- crm_note: Consolidated residual notes, comments, and unmapped fields. Use for: remarks, follow-up notes, additional comments, extra phone numbers, extra email addresses, and any useful information that doesn't fit another field.
 - data_source: Strict enum value, must be one of: [${DATA_SOURCES.join(', ')}]
 - possession_time: Property possession details/date
 - description: Additional details/description

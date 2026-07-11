@@ -87,7 +87,7 @@ class OpenAIProvider extends AIProvider {
         });
 
         const content = response.choices[0].message.content;
-        const extracted = JSON.parse(content);
+        const extracted = this.postProcessRow(JSON.parse(content));
 
         // Validate extracted data
         const validated = this.validateExtractedRow(extracted);
