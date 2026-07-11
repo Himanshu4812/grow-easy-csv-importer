@@ -1,7 +1,8 @@
 'use client';
 
-import { Download, CheckCircle, AlertCircle, RefreshCw, TrendingUp, Clock, MailIcon, Phone } from 'lucide-react';
-import { useState } from 'react';
+import { Download, CheckCircle, AlertCircle, RefreshCw, TrendingUp, Clock, MailIcon } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface ProcessingResult {
   processed: Record<string, string>[];
@@ -21,11 +22,32 @@ interface ResultsStepProps {
   onReset: () => void;
 }
 
+const ROW_HEIGHT = 44;
+
 export function ResultsStep({ result, processingTime, onReset }: ResultsStepProps) {
   const [showSkipped, setShowSkipped] = useState(false);
-  
+  const processedContainerRef = useRef<HTMLDivElement>(null);
+  const skippedContainerRef = useRef<HTMLDivElement>(null);
+
   const finalProcessingTime = processingTime || result.processingTime || 0;
   const timeInSeconds = Math.round(finalProcessingTime / 1000);
+
+  const processedHeaders = result.processed.length > 0 ? Object.keys(result.processed[0]) : [];
+  const skippedHeaders = result.skipped.length > 0 ? Object.keys(result.skipped[0]) : [];
+
+  const processedVirtualizer = useVirtualizer({
+    count: result.processed.length,
+    getScrollElement: () => processedContainerRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 10,
+  });
+
+  const skippedVirtualizer = useVirtualizer({
+    count: result.skipped.length,
+    getScrollElement: () => skippedContainerRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 10,
+  });
 
   const exportToJSON = () => {
     const data = {
@@ -86,7 +108,7 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
           <h3 className="text-2xl font-bold text-foreground mb-2">Import Complete</h3>
           <p className="text-muted-foreground">Successfully processed and validated your data</p>
         </div>
-        
+
         {/* Summary Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="text-center">
@@ -106,7 +128,7 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
             <p className="text-sm text-muted-foreground font-medium">⏱ Processing</p>
           </div>
         </div>
-        
+
         {/* Additional Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <div className="bg-card/70 rounded-lg p-3 text-center">
@@ -133,50 +155,73 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
       </div>
 
       {/* Processed Data Table */}
-      <div>
-        <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <CheckCircle className="h-5 w-5 text-green-600" />
-          Processed Records ({result.processed.length})
-        </h3>
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-sm" role="table">
-            <thead className="bg-muted border-b border-border">
-              <tr>
-                <th className="sticky top-0 px-4 py-3 text-left font-semibold text-foreground w-12 bg-muted">#</th>
-                {Object.keys(result.processed[0] || {}).map((key) => (
-                  <th
-                    key={key}
-                    className="sticky top-0 px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap bg-muted"
-                  >
-                    {key}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {result.processed.slice(0, 10).map((row, index) => (
-                <tr key={index} className="border-b border-border hover:bg-muted/50">
-                  <td className="px-4 py-3 text-muted-foreground font-medium">{index + 1}</td>
-                  {Object.keys(result.processed[0] || {}).map((key) => (
-                    <td
-                      key={`${index}-${key}`}
-                      className="px-4 py-3 text-foreground max-w-xs truncate"
-                      title={row[key] || ''}
-                    >
-                      {row[key] || '-'}
-                    </td>
-                  ))}
-                </tr>
+      {result.processed.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            Processed Records ({result.processed.length})
+          </h3>
+          <div className="rounded-lg border border-border overflow-hidden">
+            {/* Header */}
+            <div
+              className="grid bg-muted border-b border-border sticky top-0 z-10"
+              style={{ gridTemplateColumns: `50px repeat(${processedHeaders.length}, minmax(120px, 1fr))` }}
+            >
+              <div className="px-4 py-3 text-left font-semibold text-foreground text-sm">#</div>
+              {processedHeaders.map((key) => (
+                <div key={key} className="px-4 py-3 text-left font-semibold text-foreground text-sm truncate">
+                  {key}
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+            {/* Body */}
+            <div
+              ref={processedContainerRef}
+              className="overflow-auto"
+              style={{ maxHeight: '400px' }}
+            >
+              <div style={{ height: `${processedVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+                {processedVirtualizer.getVirtualItems().map((virtualItem) => {
+                  const row = result.processed[virtualItem.index];
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      className="grid border-b border-border hover:bg-muted/50 transition-colors"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: `${virtualItem.size}px`,
+                        transform: `translateY(${virtualItem.start}px)`,
+                        gridTemplateColumns: `50px repeat(${processedHeaders.length}, minmax(120px, 1fr))`,
+                      }}
+                    >
+                      <div className="px-4 py-3 text-muted-foreground font-medium text-sm flex items-center">
+                        {virtualItem.index + 1}
+                      </div>
+                      {processedHeaders.map((key) => (
+                        <div
+                          key={`${virtualItem.index}-${key}`}
+                          className="px-2 py-1.5 text-foreground text-sm truncate flex items-center"
+                          title={row[key] || ''}
+                        >
+                          {row[key] || '-'}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          {result.processed.length > 50 && (
+            <p className="mt-2 text-sm text-muted-foreground text-center">
+              {result.processed.length} records (virtualized — all loadable)
+            </p>
+          )}
         </div>
-        {result.processed.length > 10 && (
-          <p className="mt-2 text-sm text-muted-foreground text-center">
-            Showing 10 of {result.processed.length} records
-          </p>
-        )}
-      </div>
+      )}
 
       {/* Skipped Records */}
       {result.skipped.length > 0 && (
@@ -191,38 +236,59 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
             Skipped Records ({result.skipped.length})
           </button>
           {showSkipped && (
-            <div id="skipped-records-table" className="overflow-x-auto rounded-lg border border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-950/20">
-              <table className="w-full text-sm" role="table">
-                <thead className="bg-yellow-100 dark:bg-yellow-900/30 border-b border-yellow-200 dark:border-yellow-900">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-foreground w-12">#</th>
-                    {Object.keys(result.skipped[0] || {}).map((key) => (
-                      <th
-                        key={key}
-                        className="px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap"
+            <div id="skipped-records-table" className="rounded-lg border border-yellow-200 dark:border-yellow-900 overflow-hidden">
+              {/* Header */}
+              <div
+                className="grid bg-yellow-100 dark:bg-yellow-900/30 border-b border-yellow-200 dark:border-yellow-900"
+                style={{ gridTemplateColumns: `50px repeat(${skippedHeaders.length}, minmax(120px, 1fr))` }}
+              >
+                <div className="px-4 py-3 text-left font-semibold text-foreground text-sm">#</div>
+                {skippedHeaders.map((key) => (
+                  <div key={key} className="px-4 py-3 text-left font-semibold text-foreground text-sm truncate">
+                    {key}
+                  </div>
+                ))}
+              </div>
+              {/* Body */}
+              <div
+                ref={skippedContainerRef}
+                className="overflow-auto bg-yellow-50 dark:bg-yellow-950/20"
+                style={{ maxHeight: '400px' }}
+              >
+                <div style={{ height: `${skippedVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+                  {skippedVirtualizer.getVirtualItems().map((virtualItem) => {
+                    const row = result.skipped[virtualItem.index];
+                    return (
+                      <div
+                        key={virtualItem.key}
+                        className="grid border-b border-yellow-200 dark:border-yellow-900"
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: `${virtualItem.size}px`,
+                          transform: `translateY(${virtualItem.start}px)`,
+                          gridTemplateColumns: `50px repeat(${skippedHeaders.length}, minmax(120px, 1fr))`,
+                        }}
                       >
-                        {key}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.skipped.slice(0, 10).map((row, index) => (
-                    <tr key={index} className="border-b border-yellow-200 dark:border-yellow-900">
-                      <td className="px-4 py-3 text-muted-foreground font-medium">{index + 1}</td>
-                      {Object.keys(result.skipped[0] || {}).map((key) => (
-                        <td
-                          key={`${index}-${key}`}
-                          className="px-4 py-3 text-foreground max-w-xs truncate"
-                          title={row[key] || ''}
-                        >
-                          {row[key] || '-'}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <div className="px-4 py-3 text-muted-foreground font-medium text-sm flex items-center">
+                          {virtualItem.index + 1}
+                        </div>
+                        {skippedHeaders.map((key) => (
+                          <div
+                            key={`${virtualItem.index}-${key}`}
+                            className="px-2 py-1.5 text-foreground text-sm truncate flex items-center"
+                            title={row[key] || ''}
+                          >
+                            {row[key] || '-'}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
         </div>

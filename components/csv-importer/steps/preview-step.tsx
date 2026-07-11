@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface CSVRow {
@@ -14,7 +15,7 @@ interface CSVPreviewStepProps {
   onCancel: () => void;
 }
 
-const pageSize = 50;
+const COLLAPSED_HEIGHT = 44;
 
 export function CSVPreviewStep({
   headers,
@@ -23,18 +24,35 @@ export function CSVPreviewStep({
   onCancel,
 }: CSVPreviewStepProps) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [currentPage, setCurrentPage] = useState(0);
-  const totalPages = Math.ceil(data.length / pageSize);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const toggleRowExpanded = (index: number) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(index)) {
-      newExpanded.delete(index);
-    } else {
-      newExpanded.add(index);
-    }
-    setExpandedRows(newExpanded);
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
   };
+
+  const getRowHeight = (index: number) => {
+    if (!expandedRows.has(index)) return COLLAPSED_HEIGHT;
+    const detailRows = Math.ceil(headers.length / 2);
+    return COLLAPSED_HEIGHT + 32 + detailRows * 36 + (detailRows - 1) * 12;
+  };
+
+  const virtualizer = useVirtualizer({
+    count: data.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: getRowHeight,
+    overscan: 15,
+  });
+
+  useEffect(() => {
+    virtualizer.measure();
+  }, [expandedRows, virtualizer]);
+
+  const gridCols = `50px repeat(${headers.length}, minmax(140px, 1fr)) 40px`;
 
   return (
     <div className="space-y-6">
@@ -65,100 +83,111 @@ export function CSVPreviewStep({
         </div>
       </div>
 
-      {/* Table Preview */}
-      <div className="overflow-auto max-h-[500px] rounded-lg border border-border">
-        <table className="w-full text-sm border-collapse" role="table">
-          <thead className="bg-muted border-b border-border sticky top-0 z-10">
-            <tr>
-              <th className="px-4 py-3 text-left font-semibold text-foreground w-12 bg-muted">#</th>
-              {headers.map((header) => (
-                <th
-                  key={header}
-                  className="px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap bg-muted"
-                >
-                  {header}
-                </th>
-              ))}
-              <th className="px-4 py-3 w-12 bg-muted"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((row, relativeIndex) => {
-              const actualIndex = currentPage * pageSize + relativeIndex;
+      {/* Virtualized Table */}
+      <div className="rounded-lg border border-border overflow-hidden">
+        {/* Sticky Header */}
+        <div
+          className="grid bg-muted border-b border-border sticky top-0 z-10"
+          style={{ gridTemplateColumns: gridCols }}
+        >
+          <div className="px-4 py-3 text-left font-semibold text-foreground text-sm">#</div>
+          {headers.map((header) => (
+            <div
+              key={header}
+              className="px-4 py-3 text-left font-semibold text-foreground text-sm truncate"
+            >
+              {header}
+            </div>
+          ))}
+          <div className="px-4 py-3" />
+        </div>
+
+        {/* Scrollable Body */}
+        <div
+          ref={tableContainerRef}
+          className="overflow-auto"
+          style={{ maxHeight: '400px' }}
+        >
+          <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const rowIndex = virtualItem.index;
+              const row = data[rowIndex];
+              const isExpanded = expandedRows.has(rowIndex);
               return (
-                <React.Fragment key={actualIndex}>
-                  <tr className="border-b border-border hover:bg-muted/50">
-                    <td className="px-4 py-3 text-muted-foreground font-medium">{actualIndex + 1}</td>
+                <div
+                  key={virtualItem.key}
+                  className="border-b border-border"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualItem.size}px`,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  {/* Main row */}
+                  <div
+                    className="grid hover:bg-muted/50 transition-colors cursor-pointer"
+                    style={{
+                      height: `${COLLAPSED_HEIGHT}px`,
+                      gridTemplateColumns: gridCols,
+                    }}
+                    onClick={() => toggleRowExpanded(rowIndex)}
+                  >
+                    <div className="px-4 py-3 text-muted-foreground font-medium text-sm flex items-center">
+                      {rowIndex + 1}
+                    </div>
                     {headers.map((header) => (
-                      <td
-                        key={`${actualIndex}-${header}`}
-                        className="px-4 py-3 text-foreground max-w-xs truncate"
+                      <div
+                        key={`${rowIndex}-${header}`}
+                        className="px-2 py-1.5 text-foreground text-sm truncate flex items-center"
                         title={row[header] || ''}
                       >
                         {row[header] || '-'}
-                      </td>
+                      </div>
                     ))}
-                    <td className="px-4 py-3 text-right">
+                    <div className="px-4 py-3 flex items-center justify-center">
                       <button
-                        onClick={() => toggleRowExpanded(actualIndex)}
+                        onClick={(e) => { e.stopPropagation(); toggleRowExpanded(rowIndex); }}
                         className="p-1 hover:bg-muted rounded transition-colors"
-                        aria-label={expandedRows.has(actualIndex) ? 'Collapse row details' : 'Expand row details'}
+                        aria-label={isExpanded ? 'Collapse row details' : 'Expand row details'}
                       >
-                        {expandedRows.has(actualIndex) ? (
+                        {isExpanded ? (
                           <ChevronUp className="h-4 w-4 text-muted-foreground" />
                         ) : (
                           <ChevronDown className="h-4 w-4 text-muted-foreground" />
                         )}
                       </button>
-                    </td>
-                  </tr>
-                  {expandedRows.has(actualIndex) && (
-                    <tr className="bg-muted/30 border-b border-border">
-                      <td colSpan={headers.length + 2} className="px-4 py-4">
-                        <div className="space-y-2">
-                          {headers.map((header) => (
-                            <div key={`${actualIndex}-${header}-details`} className="text-sm">
-                              <span className="font-semibold text-foreground">{header}:</span>
-                              <span className="ml-2 text-muted-foreground">
-                                {row[header] || '<empty>'}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
+                    </div>
+                  </div>
+
+                  {/* Expanded panel */}
+                  {isExpanded && (
+                    <div className="bg-muted/30 px-4 py-4 border-t border-border">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {headers.map((header) => (
+                          <div key={`${rowIndex}-${header}-details`} className="text-sm">
+                            <span className="font-semibold text-foreground block mb-0.5">{header}</span>
+                            <span className="text-muted-foreground break-words">
+                              {row[header] || <span className="italic opacity-50">&lt;empty&gt;</span>}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                </React.Fragment>
+                </div>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm" role="navigation" aria-label="Table pagination">
-          <p className="text-muted-foreground">
-            Showing {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, data.length)} of {data.length} rows
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
-              disabled={currentPage === 0}
-              className="rounded-lg border border-border px-3 py-1.5 text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:pointer-events-none"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={currentPage >= totalPages - 1}
-              className="rounded-lg border border-border px-3 py-1.5 text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:pointer-events-none"
-            >
-              Next
-            </button>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Row count */}
+      <div className="text-sm text-muted-foreground text-center">
+        Showing {data.length} row{data.length !== 1 ? 's' : ''}
+      </div>
 
       {/* Actions */}
       <div className="flex gap-4">
