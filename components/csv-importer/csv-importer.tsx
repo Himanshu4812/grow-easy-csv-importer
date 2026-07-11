@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { Upload } from 'lucide-react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import Papa from 'papaparse';
 import { CSVUploadStep } from './steps/upload-step';
 import { CSVPreviewStep } from './steps/preview-step';
@@ -49,6 +48,11 @@ export function CSVImporter() {
   const [processingStatus, setProcessingStatus] = useState<string>('');
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    contentRef.current?.focus();
+  }, [currentStep]);
 
   const handleFileUpload = useCallback((file: File) => {
     setError(null);
@@ -72,39 +76,86 @@ export function CSVImporter() {
     });
   }, []);
 
+  const batchSize = 30;
+
   const handleConfirmPreview = useCallback(async () => {
     setCurrentStep('processing');
-    setProcessingStatus('Analyzing CSV structure...');
+    setError(null);
     setProcessingStartTime(Date.now());
-    
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      
-      setProcessingStatus(`✓ Detected ${headers.length} columns and ${csvData.length} rows`);
-      await new Promise(r => setTimeout(r, 500));
-      
-      setProcessingStatus('Finding semantic mappings...');
-      const response = await fetch(`${apiUrl}/api/process`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ rows: csvData }),
-      });
 
-      if (!response.ok) {
-        throw new Error('Failed to process CSV data');
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+    // Check server availability first
+    try {
+      const health = await fetch(`${apiUrl}/api/health`, { method: 'GET', signal: AbortSignal.timeout(5000) });
+      if (!health.ok) throw new Error('Server not ready');
+    } catch {
+      setError('Backend server is not running. Start it with: npm run server (in a separate terminal)');
+      setCurrentStep('upload');
+      setProcessingStartTime(null);
+      return;
+    }
+
+    const totalBatches = Math.ceil(csvData.length / batchSize);
+    setBatchProgress({ current: 0, total: totalBatches });
+    setProcessingStatus(`Preparing ${totalBatches} batch${totalBatches > 1 ? 'es' : ''}...`);
+
+    const allProcessed: CSVRow[] = [];
+    const allSkipped: CSVRow[] = [];
+    const allMappings: FieldMapping[] = [];
+    let totalErrors = 0;
+
+    for (let i = 0; i < csvData.length; i += batchSize) {
+      const batch = csvData.slice(i, i + batchSize);
+      const batchIndex = Math.floor(i / batchSize) + 1;
+      
+      setProcessingStatus(`Processing batch ${batchIndex} of ${totalBatches}...`);
+
+      try {
+        const response = await fetch(`${apiUrl}/api/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: batch }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Batch ${batchIndex} failed: ${response.statusText}`);
+        }
+
+        const result: ProcessingResult = await response.json();
+        allProcessed.push(...result.processed);
+        allSkipped.push(...result.skipped);
+        if (result.mappings && i === 0) allMappings.push(...result.mappings);
+        totalErrors += result.stats?.failed || 0;
+      } catch (err) {
+        allSkipped.push(...batch.map(row => ({
+          ...row,
+          reason: `Batch ${batchIndex} processing error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        })));
+        totalErrors += batch.length;
       }
 
-      const result: ProcessingResult = await response.json();
-      result.processingTime = Date.now() - (processingStartTime || Date.now());
-      setProcessingResult(result);
-      setCurrentStep('review');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
-      setCurrentStep('preview');
+      setBatchProgress({ current: batchIndex, total: totalBatches });
     }
-  }, [csvData, headers, processingStartTime]);
+
+    const processingTime = Date.now() - (processingStartTime || Date.now());
+    const combinedResult: ProcessingResult = {
+      processed: allProcessed,
+      skipped: allSkipped,
+      mappings: allMappings,
+      processingTime,
+      stats: {
+        total: csvData.length,
+        success: allProcessed.length,
+        failed: totalErrors,
+        skipped: allSkipped.length,
+      },
+    };
+
+    setProcessingResult(combinedResult);
+    setProcessingStatus('Processing complete');
+    setCurrentStep('review');
+  }, [csvData, headers, processingStartTime, batchSize]);
 
   const handleReset = useCallback(() => {
     setCurrentStep('upload');
@@ -117,7 +168,7 @@ export function CSVImporter() {
   return (
     <div className="w-full max-w-4xl mx-auto">
       {/* Step Indicator */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex items-center justify-between" role="navigation" aria-label="Import wizard steps">
         <div className="flex w-full items-center gap-4">
           {['upload', 'preview', 'processing', 'review', 'results'].map((step, index) => (
             <div key={step} className="flex items-center">
@@ -127,12 +178,12 @@ export function CSVImporter() {
                     ? 'bg-[#f06a38] text-white'
                     : ['upload', 'preview', 'processing', 'review', 'results'].indexOf(currentStep) > index
                     ? 'bg-green-500 text-white'
-                    : 'bg-gray-200 text-gray-600'
+                    : 'bg-muted text-muted-foreground'
                 }`}
               >
                 {index + 1}
               </div>
-              <span className="ml-2 hidden text-sm font-medium text-gray-700 sm:inline">
+              <span className="ml-2 hidden text-sm font-medium text-foreground sm:inline">
                 {step === 'review' ? 'Review' : step.charAt(0).toUpperCase() + step.slice(1)}
               </span>
               {index < 4 && (
@@ -140,7 +191,7 @@ export function CSVImporter() {
                   className={`ml-4 h-1 flex-1 ${
                     ['upload', 'preview', 'processing', 'review', 'results'].indexOf(currentStep) > index
                       ? 'bg-green-500'
-                      : 'bg-gray-200'
+                      : 'bg-muted'
                   }`}
                 />
               )}
@@ -151,13 +202,13 @@ export function CSVImporter() {
 
       {/* Error Message */}
       {error && (
-        <div className="mb-6 rounded-lg bg-red-50 p-4 border border-red-200">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="mb-6 rounded-lg bg-destructive/10 p-4 border border-destructive/20" role="alert" aria-live="assertive">
+          <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
       {/* Step Content */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div ref={contentRef} tabIndex={-1} className="rounded-lg border border-border bg-card p-6 shadow-sm outline-none" aria-live="polite" aria-atomic="true">
         {currentStep === 'upload' && (
           <CSVUploadStep onFileUpload={handleFileUpload} />
         )}
