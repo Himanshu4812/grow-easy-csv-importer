@@ -57,7 +57,7 @@ Supports multiple AI providers dynamically using an abstract provider interface:
 *   **OpenRouter (Default):** Runs `openai/gpt-4o-mini` for high-precision, low-cost extractions.
 *   **Google Gemini:** Native integration using the official SDK (`gemini-1.5-flash`).
 *   **OpenAI:** Dedicated integration for `gpt-4o` models.
-*   **Mock Provider:** Runs offline extraction simulation for testing.
+*   **Mock Provider:** Runs offline extraction simulation with no API key required. Also serves as automatic fallback when the primary AI provider fails.
 
 ---
 
@@ -138,15 +138,13 @@ pnpm install
 ### 2. Environment Configuration
 Create a `.env` file in the root of the project directory and configure the variables:
 ```env
-# Choose provider: openrouter, gemini, openai, mock
-AI_PROVIDER=openrouter
+# Choose provider: gemini, mock, openrouter, openai
+AI_PROVIDER=gemini
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-1.5-flash
 
-# OpenRouter Configuration
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_MODEL=openai/gpt-4o-mini
-
-# Optional Gemini Configuration
-# GEMINI_API_KEY=your_gemini_api_key_here
+# Use mock for offline testing (no API key needed):
+# AI_PROVIDER=mock
 
 # Port Configuration
 PORT=3001
@@ -169,8 +167,26 @@ node tests/provider-factory.test.js
 
 ---
 
+## 🧪 Using Mock Provider (No API Key Required)
+
+Set `AI_PROVIDER=mock` in `.env` to run the pipeline without any AI provider or API key. The mock provider maps CSV columns to CRM fields using case-insensitive name matching:
+
+| CSV Column | Mapped To | Example |
+|---|---|---|
+| `Email`, `e-mail`, `mail`, `email_address` | `email` | john@acme.com |
+| `Phone`, `phone_number`, `tel`, `mobile` | `mobile_without_country_code` | 9876543210 |
+| `First Name` + `Last Name` | `name` | John Doe |
+| `Company`, `organization`, `org`, `business` | `company` | ACME Corp |
+
+The mock provider also acts as an **automatic fallback** — if Gemini or OpenRouter fails or returns no results, the system gracefully degrades to mock so you always get results instead of 0 processed records.
+
+---
+
 ## ⚡ Troubleshooting
 
+*   **AI returns 0 processed records, all skipped:**
+    *   The backend server might not be running. Open a second terminal and run `pnpm run server`.
+    *   Or your API key may be invalid. Try setting `AI_PROVIDER=mock` in `.env` to test without an API key.
 *   **Error: `OPENROUTER_API_KEY environment variable is required`**
     *   Double-check that your API key is correctly configured in your `.env` file and that you restarted your dev server (`pnpm run dev:all`).
 *   **Error: `Cannot resolve module`**
