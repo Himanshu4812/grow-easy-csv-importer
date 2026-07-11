@@ -81,7 +81,8 @@ export function CSVImporter() {
   const handleConfirmPreview = useCallback(async () => {
     setCurrentStep('processing');
     setError(null);
-    setProcessingStartTime(Date.now());
+    const startTime = Date.now();
+    setProcessingStartTime(startTime);
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -138,7 +139,7 @@ export function CSVImporter() {
       setBatchProgress({ current: batchIndex, total: totalBatches });
     }
 
-    const processingTime = Date.now() - (processingStartTime || Date.now());
+    const processingTime = Date.now() - startTime;
     const combinedResult: ProcessingResult = {
       processed: allProcessed,
       skipped: allSkipped,
@@ -155,7 +156,7 @@ export function CSVImporter() {
     setProcessingResult(combinedResult);
     setProcessingStatus('Processing complete');
     setCurrentStep('review');
-  }, [csvData, headers, processingStartTime, batchSize]);
+  }, [csvData, headers, batchSize]);
 
   const handleReset = useCallback(() => {
     setCurrentStep('upload');
