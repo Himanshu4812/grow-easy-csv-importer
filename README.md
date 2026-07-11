@@ -1,195 +1,255 @@
-# 🚀 GrowEasy AI-Powered CSV Importer
+# GrowEasy AI-Powered CSV Importer
 
-An enterprise-grade, intelligent CSV ingestion pipeline built for the **GrowEasy CRM** platform. It utilizes Large Language Models (LLMs) to automatically interpret, clean, validate, and map arbitrarily structured spreadsheets into the standardized GrowEasy CRM lead schema in real time.
+An enterprise-grade CSV ingestion pipeline for the **GrowEasy CRM** platform. Uses Large Language Models (LLMs) to automatically interpret, clean, validate, and map arbitrarily structured CSV files into the standardised GrowEasy CRM lead schema.
 
----
-
-## 🌟 Key Features
-
-*   **🧠 Semantic Field Mapping:** Identifies column headers and cell meanings using LLM semantic understanding rather than strict string matching (e.g., maps `Prospect Name` or `Lead` to `name`).
-*   **📊 Interactive 5-Step Stepper:** A guided modal workflow: **Upload ➔ Preview ➔ Processing ➔ Mapping Review ➔ Results**.
-*   **🎯 Mapping Review Step (CRM standard):** Users see exactly how the AI mapped the headers, reasoning for the decision, and a confidence score for each column before finalizing the import.
-*   **⚡ Enterprise-Grade Batch Engine:** Splices large files into optimized chunks (30 rows/batch) processing concurrently with promise pooling and exponential backoff retry recovery.
-*   **📱 Modern, Premium UI/UX:** Built using Next.js, React 19, and TailwindCSS adhering to the GrowEasy design tokens (Coral & Teal palette, glassmorphism, sticky headers, responsive layouts).
-*   **🔒 Prompt Injection Defense:** Cells containing instructions (e.g., "ignore other rules") are treated strictly as raw text data.
+**Position:** Full-Time Software Developer  
+**Apply at:** varun@groweasy.ai
 
 ---
 
-## 🎨 Design System & Aesthetics
+## Features
 
-Our interface follows the **GrowEasy Visual Identity Guidelines** to ensure a premium, modern, and accessible experience.
-
-### 🎨 Color Palette
-*   **Primary Brand Color:** `#f06a38` (Vibrant Coral/Orange) - used for active stepper status, main action buttons, and active hover borders.
-*   **Secondary Brand Color:** `#115e59` (Dark Teal) - used for subtle badges, secondary borders, and tab states.
-*   **Status Indicators:**
-    *   `GOOD_LEAD_FOLLOW_UP` ➔ **Green** (Background: `#f0fdf4`, Text: `#166534`)
-    *   `DID_NOT_CONNECT` ➔ **Slate/Grey** (Background: `#f1f5f9`, Text: `#475569`)
-    *   `BAD_LEAD` ➔ **Red** (Background: `#fef2f2`, Text: `#991b1b`)
-    *   `SALE_DONE` ➔ **Blue** (Background: `#eff6ff`, Text: `#1e40af`)
-
-### ✍️ Typography
-*   **Primary Font:** `Inter` (Sans-Serif) for high-readability body text.
-*   **Heading Font:** `Outfit` / `Inter` bold for clean, modern headings.
-
-### 📐 Spacing & Components
-*   Follows a standard **8px Grid System** for consistent layout spacing.
-*   **Card/Modal Corners:** `12px` (rounded-xl) border-radius.
-*   **Table Preview:** Set in a fixed-height scroll container (`max-h-[500px] overflow-auto`) with **sticky headers** and scroll lock preservation.
-*   **Performance Optimization:** Large files are truncated to the first 50 rows in the preview step to avoid browser rendering lag, while the entire file is sent to the backend for complete batch parsing.
+- **AI Field Mapping** — Maps any CSV column layout to 15 GrowEasy CRM fields using LLMs (OpenRouter, Gemini, OpenAI, or offline Mock)
+- **5-Step Wizard** — Upload → Preview → Processing (live streaming) → Review Mappings → Results
+- **Streaming / Incremental Parsing** — Records appear live as batches complete (SSE streaming), no need to wait for all batches
+- **Virtualized Tables** — Handles 100,000+ rows without DOM bloat using `@tanstack/react-virtual`
+- **Batch Processing** — 30 rows/batch, 10 concurrent requests, exponential backoff retry (3 attempts)
+- **Automatic Fallback** — If the primary AI provider fails, the system gracefully degrades to the Mock provider
+- **Multi-Value Splitting** — Multiple emails/phones in one cell: first → primary field, remainder → `crm_note`
+- **15 CRM Fields** — All fields from the spec: `created_at`, `name`, `email`, `country_code`, `mobile_without_country_code`, `company`, `city`, `state`, `country`, `lead_owner`, `crm_status`, `crm_note`, `data_source`, `possession_time`, `description`
+- **Dark Mode** — Full dark mode with `#0f0f12` / `#1a1a1f` backgrounds
+- **Export** — Download results as JSON or CSV
+- **Drag & Drop Upload** — With file validation (`.csv`, max 5MB)
+- **Field Mapping Review** — Shows AI-inferred mappings with confidence scores before finalising
+- **Prompt Injection Defense** — Data cells are treated strictly as raw text
+- **Edge Case Handling** — Special characters, Unicode, long values, empty rows, incomplete records, mixed separators
 
 ---
 
-## 🛠️ Tech Stack & Architecture
+## Tech Stack
 
-### Frontend (Next.js 16, React 19)
-*   **Next.js App Router:** Employs server-side layouts for fast initial shell loads and client-side page rendering for dynamic steps.
-*   **PapaParse:** Performs efficient client-side CSV parsing.
-*   **Lucide-React:** Set of clean, vector icons.
-*   **TailwindCSS:** Modern utility-first responsive styling framework.
-
-### Backend (Express.js)
-*   **Stateless REST API:** Ingests dynamic rows and headers and maps fields via the LLM service layer.
-*   **Concurrent Batch Queue:** Slices arrays and runs them concurrently in bundles of 30 records, utilizing exponential backoff retry queues.
-
-### AI Integration Layer (Factory Pattern)
-Supports multiple AI providers dynamically using an abstract provider interface:
-*   **OpenRouter (Default):** Runs `openai/gpt-4o-mini` for high-precision, low-cost extractions.
-*   **Google Gemini:** Native integration using the official SDK (`gemini-1.5-flash`).
-*   **OpenAI:** Dedicated integration for `gpt-4o` models.
-*   **Mock Provider:** Runs offline extraction simulation with no API key required. Also serves as automatic fallback when the primary AI provider fails.
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 16, React 19, TypeScript (strict), Tailwind CSS v4 |
+| Backend | Node.js, Express 5, stateless |
+| AI | OpenRouter (default), Google Gemini, OpenAI, Mock Provider |
+| CSV Parsing | PapaParse (client-side) |
+| Virtualization | `@tanstack/react-virtual` |
+| Testing | Jest 30, Supertest |
+| Font | Manrope (400–800 via next/font) |
 
 ---
 
-## 📋 GrowEasy Target CRM Schema
+## Design System
 
-The AI maps incoming rows to the following target schema keys:
-
-| Key | Type | Description | Requirements |
-| :--- | :--- | :--- | :--- |
-| `created_at` | String | Ingestion date | Valid ISO 8601 UTC string parseable by JS `new Date(created_at)`. |
-| `name` | String | Full name | Combined from name/first name/last name fields. |
-| `email` | String | Primary email | Lowercase conversion. Single valid email address. |
-| `country_code` | String | Country dial code | Inferred calling code (e.g. `+91`, `+1`). |
-| `mobile_without_country_code` | String | Cleaned digits | Phone number with calling codes/formatting symbols stripped off. |
-| `company` | String | Company name | Mapped from employer/company/organization. |
-| `city` | String | City name | - |
-| `state` | String | State name | - |
-| `country` | String | Country name | Standardized country name spelling. |
-| `lead_owner` | String | Assigned agent | Rep email or name. |
-| `crm_status` | Enum | Lead status | Strict validation. Must be: `GOOD_LEAD_FOLLOW_UP` \| `DID_NOT_CONNECT` \| `BAD_LEAD` \| `SALE_DONE`. |
-| `crm_note` | String | Consolidated notes | Appends secondary emails, secondary phones, comments, and unmapped metadata. |
-| `data_source` | Enum | Campaign source | Strict validation. Must be: `leads_on_demand` \| `meridian_tower` \| `eden_park` \| `varah_swamy` \| `sarjapur_plots`. |
-| `possession_time` | String | Handover details | - |
-| `description` | String | Extra descriptions | - |
-
-### Ingestion Validation Rules:
-1.  **Skip Condition:** A record is skipped (and logged in the results panel) if it contains **neither** an `email` **nor** a `mobile_without_country_code`.
-2.  **Date Fallback:** If a date cannot be parsed, the system falls back to `new Date().toISOString()`.
-3.  **Multi-Value Split:** The first email/mobile goes to the primary field; additional entries are appended to the `crm_note` string.
+- **Primary:** `#F97316` (Orange)
+- **Accent:** `#225E56` (Teal)
+- **Light bg:** `#FAFAFA`, cards `#FFFFFF`
+- **Dark bg:** `#0f0f12`, cards `#1a1a1f`
+- **Border radius:** `1rem` (16px) cards, `~12px` buttons/inputs
+- **Font:** Manrope (CSS variable `--font-manrope`)
+- **Shadows:** `shadow-card` for card elevation
 
 ---
 
-## 📁 Repository Directory Structure
+## Setup
 
-```text
-grow-easy-csv-importer/
-├── app/
-│   ├── page.tsx               # Main page rendering the CSVImporter
-│   ├── layout.tsx             # Root layout with font and CSS wrapper
-│   └── globals.css            # GrowEasy design system tokens
-├── components/
-│   └── csv-importer/
-│       ├── csv-importer.tsx   # Workflow state orchestrator
-│       └── steps/
-│           ├── upload-step.tsx       # Drag-and-drop file uploader
-│           ├── preview-step.tsx      # Table preview (sticky headers, 50-row limit)
-│           ├── processing-step.tsx   # Real-time progress tracker
-│           ├── mapping-review-step.tsx # Target fields and confidence indicators
-│           └── results-step.tsx      # Metric dashboards & download options
-├── services/
-│   ├── ai-provider-interface.js      # Base provider and validation logic
-│   ├── ai-provider-factory.js        # Provider factory orchestrator
-│   ├── llm-service.js                # Core LLM process handlers
-│   └── providers/
-│       ├── openrouter-provider.js    # OpenRouter API client
-│       ├── gemini-provider.js        # Gemini API client
-│       ├── openai-provider.js        # OpenAI client
-│       └── mock-provider.js          # Offline mock simulator
-├── hooks/
-│   └── use-csv-processor.ts          # React hooks for API interaction
-├── tests/
-│   └── provider-factory.test.js      # Automated unit test suite
-├── server.js                         # Express backend API server
-├── package.json                      # Scripts and package definitions
-└── .env                              # Local environment configurations
-```
+### Prerequisites
+- Node.js 18+, pnpm
 
----
+### Installation
 
-## 🚀 Setup & Execution Guide
-
-### 1. Installation
-Install all required package dependencies:
 ```bash
 pnpm install
 ```
 
-### 2. Environment Configuration
-Create a `.env` file in the root of the project directory and configure the variables:
+### Environment (`.env`)
+
 ```env
-# Choose provider: gemini, mock, openrouter, openai
-AI_PROVIDER=gemini
-GEMINI_API_KEY=your_gemini_api_key_here
+# Provider: openrouter (default), gemini, openai, or mock
+AI_PROVIDER=openrouter
+
+# API keys (not needed for mock)
+OPENROUTER_API_KEY=sk-or-...
+GEMINI_API_KEY=...
+OPENAI_API_KEY=...
+
+# Models (optional)
+OPENROUTER_MODEL=openai/gpt-4o-mini
 GEMINI_MODEL=gemini-1.5-flash
 
-# Use mock for offline testing (no API key needed):
-# AI_PROVIDER=mock
-
-# Port Configuration
+# Ports
 PORT=3001
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
-### 3. Run Development Servers
-Start both the Next.js frontend and Express backend servers concurrently:
+### Run
+
 ```bash
 pnpm run dev:all
 ```
-*   **Frontend Dashboard:** `http://localhost:3000`
-*   **Backend Server:** `http://localhost:3001`
 
-### 4. Running Automated Tests
-Run the mock provider test suite:
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:3001`
+
+### Using Mock Provider (No API Key)
+
+Set `AI_PROVIDER=mock` in `.env`. The mock provider maps CSV columns using intelligent field name matching (case-insensitive, partial matches). It also serves as automatic fallback when the real AI provider fails.
+
+---
+
+## Tests
+
+78 unit and integration tests (Jest + Supertest):
+
 ```bash
-node tests/provider-factory.test.js
+pnpm test
+```
+
+### Test coverage
+
+| File | What it covers |
+|------|---------------|
+| `tests/api.test.js` | Express endpoints, validation, batch processing, error handling |
+| `tests/validation.test.js` | CRM status, data source, date validation, error accumulation |
+| `tests/mock-provider.test.js` | Field extraction, multi-value splitting, status/source inference |
+| `tests/post-process-row.test.js` | Email/phone splitting, existing note preservation, edge cases |
+| `tests/llm-service.test.js` | Fallback behaviour, mock provider integration |
+| `tests/factory.test.js` | Provider creation, missing key errors, unsupported providers |
+| `tests/edge-cases.test.js` | Special characters, Unicode, whitespace, boundary dates, streaming |
+
+---
+
+## API Endpoints
+
+### POST /api/process
+Process CSV rows synchronously (batches of 30, all results at once).
+
+### POST /api/process-stream
+Process CSV rows with **SSE streaming**. Events:
+```
+event: start     → { total: N }
+event: batch     → { batchIndex, totalBatches, processed, skipped, errors }
+event: complete  → { stats: { total, success, failed, skipped }, mappings }
+event: error     → { message }
+```
+
+### GET /api/health
+Returns `{ status: "ok" }`.
+
+---
+
+## AI Provider Architecture
+
+The system uses a **Factory + Strategy pattern**:
+
+```
+AIProviderFactory.create() → AIProvider (abstract base)
+  ├── OpenRouterProvider  (openai/gpt-4o-mini)
+  ├── GeminiProvider      (gemini-1.5-flash)
+  ├── OpenAIProvider      (gpt-4o)
+  └── MockProvider        (offline, automatic fallback)
+```
+
+Each provider implements:
+- `extractCRMData(records)` — process rows, return `{ results, errors }`
+- `postProcessRow(row)` — split multi-value emails/phones, first → primary, rest → `crm_note`
+- `validateExtractedRow(row)` — validate CRM status, data source, date, email/phone presence
+- `getSystemPrompt()` — shared prompt with all 8 AI instructions from the spec
+
+---
+
+## AI Instructions (from spec)
+
+1. **CRM Status** — Only: `GOOD_LEAD_FOLLOW_UP`, `DID_NOT_CONNECT`, `BAD_LEAD`, `SALE_DONE`
+2. **Data Source** — Only: `leads_on_demand`, `meridian_tower`, `eden_park`, `varah_swamy`, `sarjapur_plots` (blank if none match)
+3. **Date Format** — Must be parseable by `new Date(created_at)` in JavaScript
+4. **CRM Notes** — Use for remarks, follow-up notes, extra phones, extra emails, any unmapped info
+5. **Multi-Value Split** — First email/phone → primary field, remainder → `crm_note`
+6. **CSV Compatibility** — Single CSV row per record, escape line breaks as `\n`
+7. **Skip Invalid** — Skip records with neither email nor mobile number
+8. **No Hallucination** — Leave blank what doesn't match
+
+---
+
+## Directory Structure
+
+```
+grow-easy-csv-importer/
+├── app/
+│   ├── page.tsx                  # Root page with GrowEasy branding
+│   ├── layout.tsx                # Manrope font, metadata, favicon
+│   └── globals.css               # Full design system (light + dark)
+├── components/
+│   ├── csv-importer/
+│   │   ├── csv-importer.tsx      # Step orchestrator + streaming logic
+│   │   └── steps/
+│   │       ├── upload-step.tsx         # Drag-and-drop with validation
+│   │       ├── preview-step.tsx        # Virtualized table preview
+│   │       ├── processing-step.tsx     # Live stream stats + preview
+│   │       ├── mapping-review-step.tsx # Field mapping confidence review
+│   │       └── results-step.tsx        # Virtualized results + export
+│   ├── groweasy-logo.tsx
+│   ├── dark-mode-toggle.tsx
+│   └── ui/button.tsx
+├── services/
+│   ├── ai-provider-interface.js  # Base class: postProcessRow, validate, getSystemPrompt
+│   ├── ai-provider-factory.js    # Factory: creates provider from env var
+│   ├── llm-service.js            # Orchestrator with fallback logic
+│   └── providers/
+│       ├── openrouter-provider.js
+│       ├── gemini-provider.js
+│       ├── openai-provider.js
+│       └── mock-provider.js
+├── tests/
+│   ├── api.test.js
+│   ├── validation.test.js
+│   ├── mock-provider.test.js
+│   ├── post-process-row.test.js
+│   ├── llm-service.test.js
+│   ├── factory.test.js
+│   ├── edge-cases.test.js
+│   └── provider-factory.manual.js
+├── server.js                     # Express server (process + process-stream + health)
+├── jest.config.js
+├── package.json
+├── public/
+│   ├── icon.svg                  # GrowEasy favicon
+│   └── Sample-CRM-Records.csv
+└── README.md
 ```
 
 ---
 
-## 🧪 Using Mock Provider (No API Key Required)
+## Validation Rules
 
-Set `AI_PROVIDER=mock` in `.env` to run the pipeline without any AI provider or API key. The mock provider maps CSV columns to CRM fields using case-insensitive name matching:
-
-| CSV Column | Mapped To | Example |
-|---|---|---|
-| `Email`, `e-mail`, `mail`, `email_address` | `email` | john@acme.com |
-| `Phone`, `phone_number`, `tel`, `mobile` | `mobile_without_country_code` | 9876543210 |
-| `First Name` + `Last Name` | `name` | John Doe |
-| `Company`, `organization`, `org`, `business` | `company` | ACME Corp |
-
-The mock provider also acts as an **automatic fallback** — if Gemini or OpenRouter fails or returns no results, the system gracefully degrades to mock so you always get results instead of 0 processed records.
+| Rule | Enforcement |
+|------|------------|
+| Email or phone required | `validateExtractedRow`: record skipped if missing both |
+| CRM status | Must be one of 4 allowed values; case-sensitive |
+| Data source | Must be one of 5 allowed values; blank if none match |
+| Date format | Must pass `new Date()` JavaScript parsing |
+| Multi-value split | `postProcessRow`: first value → primary, rest → `crm_note` |
+| Whitespace | Email/phone trimmed before processing |
+| File size | Max 5MB, `.csv` extension required |
 
 ---
 
-## ⚡ Troubleshooting
+## Bonus Items Implemented
 
-*   **AI returns 0 processed records, all skipped:**
-    *   The backend server might not be running. Open a second terminal and run `pnpm run server`.
-    *   Or your API key may be invalid. Try setting `AI_PROVIDER=mock` in `.env` to test without an API key.
-*   **Error: `OPENROUTER_API_KEY environment variable is required`**
-    *   Double-check that your API key is correctly configured in your `.env` file and that you restarted your dev server (`pnpm run dev:all`).
-*   **Error: `Cannot resolve module`**
-    *   Run `pnpm install` in the project root to restore missing libraries.
-*   **CSV upload not loading preview:**
-    *   Verify the file extension is `.csv` and that the file contains column headers in the first row. Use the sample data located at `/public/Sample-CRM-Records.csv` to test the flow.
+- [x] Drag & Drop upload
+- [x] Progress indicators during AI processing
+- [x] Streaming / incremental parsing (SSE)
+- [x] Retry mechanism (3 attempts, exponential backoff)
+- [x] Virtualized table for large CSVs
+- [x] Dark mode
+- [x] Unit tests (78 tests)
+
+---
+
+## Troubleshooting
+
+- **"Server not running"** — Open a second terminal and run `pnpm run server`
+- **All records skipped** — Set `AI_PROVIDER=mock` to test without an API key
+- **API key error** — Verify `.env` has the correct key for your chosen provider
+- **CSV not uploading** — Ensure it's a `.csv` file with headers in the first row, under 5MB
