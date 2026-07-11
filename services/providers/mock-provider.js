@@ -1,5 +1,18 @@
 const AIProvider = require('../ai-provider-interface');
 
+function getVal(row, ...keys) {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
+  }
+  const lowerKeys = keys.map(k => k.toLowerCase().replace(/[\s_-]/g, ''));
+  for (const rowKey of Object.keys(row)) {
+    const normalized = rowKey.toLowerCase().replace(/[\s_-]/g, '');
+    const idx = lowerKeys.indexOf(normalized);
+    if (idx !== -1 && row[rowKey] !== undefined && row[rowKey] !== null && row[rowKey] !== '') return row[rowKey];
+  }
+  return '';
+}
+
 class MockProvider extends AIProvider {
   constructor() {
     super();
@@ -10,12 +23,10 @@ class MockProvider extends AIProvider {
     const results = [];
     const errors = [];
 
-    // Simulate processing with a small delay
     for (let i = 0; i < records.length; i++) {
       const row = records[i];
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
-      // Mock extraction logic
       const extracted = this.mockExtractRow(row, i);
       const validated = this.validateExtractedRow(extracted);
 
@@ -39,16 +50,16 @@ class MockProvider extends AIProvider {
   }
 
   mockExtractRow(row, index) {
-    // Determine the name
-    const rawName = row.name || row.full_name || row.fullName || row.lead_name || 
-                     [row.first_name || row.firstName || row.given_name || '', row.last_name || row.lastName || row.family_name || ''].join(' ').trim() || 
+    const firstName = getVal(row, 'first_name', 'firstName', 'first name', 'given_name', 'given name', 'fname');
+    const lastName = getVal(row, 'last_name', 'lastName', 'last name', 'family_name', 'family name', 'lname', 'surname');
+    const rawName = getVal(row, 'name', 'full_name', 'fullName', 'full name', 'lead_name', 'lead name', 'contact_name', 'contact name') ||
+                     [firstName, lastName].filter(Boolean).join(' ').trim() ||
                      'Valued Lead';
 
-    // Parse phone numbers
-    const rawPhone = row.mobile_without_country_code || row.phone_mobile || row.mobile || row.cell || row.phone || row.phone_number || '';
-    let countryCode = row.country_code || '';
+    const rawPhone = getVal(row, 'mobile_without_country_code', 'mobile', 'phone_mobile', 'cell', 'phone', 'phone_number', 'phone number', 'contact_number', 'contact number', 'tel', 'telephone');
+    let countryCode = getVal(row, 'country_code', 'country code', 'countrycode', 'calling_code', 'calling code');
     let cleanMobile = rawPhone.replace(/\D/g, '');
-    
+
     if (cleanMobile.startsWith('91') && cleanMobile.length > 10 && !countryCode) {
       countryCode = '+91';
       cleanMobile = cleanMobile.substring(2);
@@ -56,54 +67,52 @@ class MockProvider extends AIProvider {
       countryCode = '+' + cleanMobile.substring(0, cleanMobile.length - 10);
       cleanMobile = cleanMobile.substring(cleanMobile.length - 10);
     } else if (cleanMobile && !countryCode) {
-      countryCode = '+91'; // Fallback default
+      countryCode = '+91';
     }
 
-    // Split secondary emails/phones if applicable
-    const emails = (row.email || row.mail || row.e_mail || '').split(/[,;]/).map(e => e.trim()).filter(Boolean);
+    const emails = getVal(row, 'email', 'e_mail', 'e-mail', 'mail', 'email_address', 'email address').split(/[,;]/).map(e => e.trim()).filter(Boolean);
     const primaryEmail = emails[0] || '';
     const secondaryEmails = emails.slice(1);
 
     const crmNotesList = [];
-    if (row.notes || row.comments || row.crm_note || row.remarks) {
-      crmNotesList.push(row.notes || row.comments || row.crm_note || row.remarks);
-    }
+    const notes = getVal(row, 'crm_note', 'crm note', 'notes', 'comments', 'remarks', 'comment', 'note');
+    if (notes) crmNotesList.push(notes);
     if (secondaryEmails.length > 0) {
       crmNotesList.push(`[Secondary Emails]: ${secondaryEmails.join(', ')}`);
     }
 
     return {
-      created_at: this.normalizeDate(row.created_at || row.created_date || row.date || new Date().toISOString()),
+      created_at: this.normalizeDate(getVal(row, 'created_at', 'createdAt', 'created date', 'created_date', 'date', 'timestamp')),
       name: rawName,
       email: primaryEmail,
       country_code: countryCode,
       mobile_without_country_code: cleanMobile,
-      company: row.company || row.company_name || row.organization || '',
-      city: row.city || '',
-      state: row.state || '',
-      country: row.country || '',
-      lead_owner: row.lead_owner || 'test@gmail.com',
+      company: getVal(row, 'company', 'company_name', 'company name', 'organization', 'org', 'business', 'companyname'),
+      city: getVal(row, 'city'),
+      state: getVal(row, 'state'),
+      country: getVal(row, 'country'),
+      lead_owner: getVal(row, 'lead_owner', 'lead owner', 'leadowner', 'owner') || 'test@gmail.com',
       crm_status: this.inferCRMStatus(row),
       crm_note: crmNotesList.join('; '),
       data_source: this.inferDataSource(row),
-      possession_time: row.possession_time || '',
-      description: row.description || '',
+      possession_time: getVal(row, 'possession_time', 'possession time', 'possession'),
+      description: getVal(row, 'description', 'desc', 'details'),
     };
   }
 
   inferCRMStatus(row) {
-    const statusStr = (row.crm_status || row.status || row.type || '').toUpperCase();
+    const statusStr = getVal(row, 'crm_status', 'crm status', 'status', 'type', 'lead_status', 'lead status').toUpperCase();
 
     if (statusStr.includes('GOOD') || statusStr.includes('FOLLOW')) return 'GOOD_LEAD_FOLLOW_UP';
     if (statusStr.includes('CONNECT') || statusStr.includes('NOT')) return 'DID_NOT_CONNECT';
     if (statusStr.includes('BAD') || statusStr.includes('SPAM')) return 'BAD_LEAD';
     if (statusStr.includes('SALE') || statusStr.includes('DONE') || statusStr.includes('WON')) return 'SALE_DONE';
 
-    return 'GOOD_LEAD_FOLLOW_UP'; // Default
+    return 'GOOD_LEAD_FOLLOW_UP';
   }
 
   inferDataSource(row) {
-    const sourceStr = (row.data_source || row.source || row.origin || '').toLowerCase();
+    const sourceStr = getVal(row, 'data_source', 'data source', 'datasource', 'source', 'origin').toLowerCase();
 
     if (sourceStr.includes('demand')) return 'leads_on_demand';
     if (sourceStr.includes('tower') || sourceStr.includes('meridian')) return 'meridian_tower';
@@ -111,7 +120,7 @@ class MockProvider extends AIProvider {
     if (sourceStr.includes('swamy') || sourceStr.includes('varah')) return 'varah_swamy';
     if (sourceStr.includes('plots') || sourceStr.includes('sarjapur')) return 'sarjapur_plots';
 
-    return 'leads_on_demand'; // Default
+    return 'leads_on_demand';
   }
 
   normalizeDate(dateStr) {

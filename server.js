@@ -74,6 +74,13 @@ app.post('/api/process', async (req, res) => {
     console.log(`Processing ${rows.length} rows...`);
 
     const { results, errors } = await extractAndMapCSVRows(rows, 3);
+    console.log(`AI results: ${results.length} valid, ${errors.length} errors`);
+    if (results.length > 0) {
+      console.log('First result sample:', JSON.stringify(results[0], null, 2));
+    }
+    if (errors.length > 0) {
+      console.log('First error sample:', JSON.stringify(errors[0], null, 2));
+    }
     
     const validated = results.filter(validateRecord);
     const skipped = results.filter(r => !validateRecord(r));
