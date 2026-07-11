@@ -1,10 +1,17 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
+import { Manrope } from 'next/font/google'
 import './globals.css'
 
+const manrope = Manrope({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-manrope',
+})
+
 export const metadata: Metadata = {
-  title: 'CSV Importer - GrowEasy',
-  description: 'Intelligent CSV data importer with AI-powered field mapping',
+  title: 'AI-Powered CSV Importer',
+  description: 'Import and intelligently map your contacts into the GrowEasy CRM using AI.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -58,7 +65,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased bg-background text-foreground">
+      <body className={`${manrope.variable} antialiased bg-background text-foreground`}>
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
