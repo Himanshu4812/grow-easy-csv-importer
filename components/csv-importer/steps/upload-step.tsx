@@ -1,7 +1,9 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Upload, File } from 'lucide-react';
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 interface CSVUploadStepProps {
   onFileUpload: (file: File) => void;
@@ -10,16 +12,22 @@ interface CSVUploadStepProps {
 export function CSVUploadStep({ onFileUpload }: CSVUploadStepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleFileSelect = useCallback(
     (files: FileList | null) => {
       if (files && files.length > 0) {
         const file = files[0];
-        if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
-          onFileUpload(file);
-        } else {
-          alert('Please select a valid CSV file');
+        if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+          setError('Please select a valid CSV file');
+          return;
         }
+        if (file.size > MAX_FILE_SIZE) {
+          setError(`File size exceeds the 10MB limit. Selected file is ${(file.size / (1024 * 1024)).toFixed(2)}MB.`);
+          return;
+        }
+        setError(null);
+        onFileUpload(file);
       }
     },
     [onFileUpload]
@@ -29,7 +37,7 @@ export function CSVUploadStep({ onFileUpload }: CSVUploadStepProps) {
     e.preventDefault();
     e.stopPropagation();
     if (dropZoneRef.current) {
-      dropZoneRef.current.classList.add('bg-blue-50', 'border-blue-300');
+      dropZoneRef.current.classList.add('border-primary', 'bg-primary/5');
     }
   }, []);
 
@@ -37,7 +45,7 @@ export function CSVUploadStep({ onFileUpload }: CSVUploadStepProps) {
     e.preventDefault();
     e.stopPropagation();
     if (dropZoneRef.current) {
-      dropZoneRef.current.classList.remove('bg-blue-50', 'border-blue-300');
+      dropZoneRef.current.classList.remove('border-primary', 'bg-primary/5');
     }
   }, []);
 
@@ -46,7 +54,7 @@ export function CSVUploadStep({ onFileUpload }: CSVUploadStepProps) {
       e.preventDefault();
       e.stopPropagation();
       if (dropZoneRef.current) {
-        dropZoneRef.current.classList.remove('bg-blue-50', 'border-blue-300');
+        dropZoneRef.current.classList.remove('border-primary', 'bg-primary/5');
       }
       handleFileSelect(e.dataTransfer.files);
     },
@@ -56,10 +64,10 @@ export function CSVUploadStep({ onFileUpload }: CSVUploadStepProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <h2 className="text-2xl font-bold text-foreground mb-2">
           Upload Your CSV File
         </h2>
-        <p className="text-gray-600">
+        <p className="text-muted-foreground">
           Select or drag and drop your CSV file to get started. The system will use AI to intelligently map your fields.
         </p>
       </div>
@@ -69,17 +77,17 @@ export function CSVUploadStep({ onFileUpload }: CSVUploadStepProps) {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center transition-colors cursor-pointer hover:border-[#f06a38] hover:bg-orange-50"
+        className="rounded-lg border-2 border-dashed border-border bg-muted p-12 text-center transition-colors cursor-pointer hover:border-primary hover:bg-primary/5"
       >
         <div className="flex flex-col items-center gap-4">
-          <div className="rounded-full bg-[#f06a38] bg-opacity-10 p-4">
-            <Upload className="h-8 w-8 text-[#f06a38]" />
+          <div className="rounded-full bg-primary/10 p-4">
+            <Upload className="h-8 w-8 text-primary" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+            <h3 className="text-lg font-semibold text-foreground mb-1">
               Drop your CSV file here
             </h3>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               or click to browse
             </p>
           </div>
@@ -95,17 +103,23 @@ export function CSVUploadStep({ onFileUpload }: CSVUploadStepProps) {
         />
       </div>
 
+      {error && (
+        <div className="rounded-lg bg-destructive/10 p-4 border border-destructive/20" role="alert">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
+
       <button
         onClick={() => fileInputRef.current?.click()}
-        className="w-full rounded-lg bg-[#f06a38] px-6 py-3 font-semibold text-white hover:bg-[#e05a28] transition-colors"
+        className="w-full rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
       >
         <File className="inline-block mr-2 h-5 w-5" />
         Select CSV File
       </button>
 
-      <div className="rounded-lg bg-blue-50 p-4 border border-blue-200">
-        <p className="text-sm text-blue-900">
-          <strong>Supported format:</strong> CSV files with headers. The system will automatically map contact fields like email, phone, name, and more.
+      <div className="rounded-lg bg-muted p-4 border border-border">
+        <p className="text-sm text-muted-foreground">
+          <strong>Supported format:</strong> CSV files with headers (max 10MB). The system will automatically map contact fields like email, phone, name, and more.
         </p>
       </div>
     </div>
