@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface CSVRow {
   [key: string]: string;
@@ -36,10 +36,6 @@ export function CSVPreviewStep({
     setExpandedRows(newExpanded);
   };
 
-  const previewLimit = 50;
-  const isTruncated = data.length > previewLimit;
-  const previewData = data.slice(0, previewLimit);
-
   return (
     <div className="space-y-6">
       <div>
@@ -69,15 +65,6 @@ export function CSVPreviewStep({
         </div>
       </div>
 
-      {isTruncated && (
-        <div className="rounded-lg bg-muted p-4 border border-border flex gap-3 text-muted-foreground">
-          <AlertCircle className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
-          <p className="text-sm">
-            Showing the first <strong>{previewLimit}</strong> rows for performance. The entire file of <strong>{data.length}</strong> rows will be processed.
-          </p>
-        </div>
-      )}
-
       {/* Table Preview */}
       <div className="overflow-auto max-h-[500px] rounded-lg border border-border">
         <table className="w-full text-sm border-collapse" role="table">
@@ -96,106 +83,60 @@ export function CSVPreviewStep({
             </tr>
           </thead>
           <tbody>
-            {isTruncated
-              ? previewData.map((row, index) => (
-                  <React.Fragment key={index}>
-                    <tr className="border-b border-border hover:bg-muted/50">
-                      <td className="px-4 py-3 text-muted-foreground font-medium">{index + 1}</td>
-                      {headers.map((header) => (
-                        <td
-                          key={`${index}-${header}`}
-                          className="px-4 py-3 text-foreground max-w-xs truncate"
-                          title={row[header] || ''}
-                        >
-                          {row[header] || '-'}
-                        </td>
-                      ))}
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => toggleRowExpanded(index)}
-                          className="p-1 hover:bg-muted rounded transition-colors"
-                          aria-label={expandedRows.has(index) ? 'Collapse row details' : 'Expand row details'}
-                        >
-                          {expandedRows.has(index) ? (
-                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </button>
+            {data.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((row, relativeIndex) => {
+              const actualIndex = currentPage * pageSize + relativeIndex;
+              return (
+                <React.Fragment key={actualIndex}>
+                  <tr className="border-b border-border hover:bg-muted/50">
+                    <td className="px-4 py-3 text-muted-foreground font-medium">{actualIndex + 1}</td>
+                    {headers.map((header) => (
+                      <td
+                        key={`${actualIndex}-${header}`}
+                        className="px-4 py-3 text-foreground max-w-xs truncate"
+                        title={row[header] || ''}
+                      >
+                        {row[header] || '-'}
+                      </td>
+                    ))}
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => toggleRowExpanded(actualIndex)}
+                        className="p-1 hover:bg-muted rounded transition-colors"
+                        aria-label={expandedRows.has(actualIndex) ? 'Collapse row details' : 'Expand row details'}
+                      >
+                        {expandedRows.has(actualIndex) ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedRows.has(actualIndex) && (
+                    <tr className="bg-muted/30 border-b border-border">
+                      <td colSpan={headers.length + 2} className="px-4 py-4">
+                        <div className="space-y-2">
+                          {headers.map((header) => (
+                            <div key={`${actualIndex}-${header}-details`} className="text-sm">
+                              <span className="font-semibold text-foreground">{header}:</span>
+                              <span className="ml-2 text-muted-foreground">
+                                {row[header] || '<empty>'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </td>
                     </tr>
-                    {expandedRows.has(index) && (
-                      <tr className="bg-muted/30 border-b border-border">
-                        <td colSpan={headers.length + 2} className="px-4 py-4">
-                          <div className="space-y-2">
-                            {headers.map((header) => (
-                              <div key={`${index}-${header}-details`} className="text-sm">
-                                <span className="font-semibold text-foreground">{header}:</span>
-                                <span className="ml-2 text-muted-foreground">
-                                  {row[header] || '<empty>'}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))
-              : data.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((row, relativeIndex) => {
-                  const actualIndex = currentPage * pageSize + relativeIndex;
-                  return (
-                    <React.Fragment key={actualIndex}>
-                      <tr className="border-b border-border hover:bg-muted/50">
-                        <td className="px-4 py-3 text-muted-foreground font-medium">{actualIndex + 1}</td>
-                        {headers.map((header) => (
-                          <td
-                            key={`${actualIndex}-${header}`}
-                            className="px-4 py-3 text-foreground max-w-xs truncate"
-                            title={row[header] || ''}
-                          >
-                            {row[header] || '-'}
-                          </td>
-                        ))}
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => toggleRowExpanded(actualIndex)}
-                            className="p-1 hover:bg-muted rounded transition-colors"
-                            aria-label={expandedRows.has(actualIndex) ? 'Collapse row details' : 'Expand row details'}
-                          >
-                            {expandedRows.has(actualIndex) ? (
-                              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                      {expandedRows.has(actualIndex) && (
-                        <tr className="bg-muted/30 border-b border-border">
-                          <td colSpan={headers.length + 2} className="px-4 py-4">
-                            <div className="space-y-2">
-                              {headers.map((header) => (
-                                <div key={`${actualIndex}-${header}-details`} className="text-sm">
-                                  <span className="font-semibold text-foreground">{header}:</span>
-                                  <span className="ml-2 text-muted-foreground">
-                                    {row[header] || '<empty>'}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                  )}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      {/* Pagination (only for non-truncated full view) */}
-      {!isTruncated && totalPages > 1 && (
+      {/* Pagination */}
+      {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm" role="navigation" aria-label="Table pagination">
           <p className="text-muted-foreground">
             Showing {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, data.length)} of {data.length} rows

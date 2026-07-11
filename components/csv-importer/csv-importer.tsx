@@ -48,6 +48,7 @@ export function CSVImporter() {
   const [processingStatus, setProcessingStatus] = useState<string>('');
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,8 +56,9 @@ export function CSVImporter() {
   }, [currentStep]);
 
   const handleFileUpload = useCallback((file: File) => {
+    setIsUploading(true);
     setError(null);
-    
+
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
@@ -64,14 +66,15 @@ export function CSVImporter() {
         if (results.data && Array.isArray(results.data)) {
           const data = results.data as CSVRow[];
           const cols = Object.keys(data[0] || {});
-          
           setCSVData(data);
           setHeaders(cols);
           setCurrentStep('preview');
         }
+        setIsUploading(false);
       },
       error: (error) => {
         setError(`Failed to parse CSV: ${error.message}`);
+        setIsUploading(false);
       },
     });
   }, []);
@@ -211,7 +214,7 @@ export function CSVImporter() {
       {/* Step Content */}
       <div ref={contentRef} tabIndex={-1} className="rounded-lg border border-border bg-card p-6 shadow-sm outline-none" aria-live="polite" aria-atomic="true">
         {currentStep === 'upload' && (
-          <CSVUploadStep onFileUpload={handleFileUpload} />
+          <CSVUploadStep onFileUpload={handleFileUpload} isUploading={isUploading} />
         )}
         {currentStep === 'preview' && (
           <CSVPreviewStep

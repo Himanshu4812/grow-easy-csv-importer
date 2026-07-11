@@ -69,7 +69,7 @@ pnpm run server
 
 1. **Open the app**: Navigate to http://localhost:3000
 2. **Upload a CSV**: Click "Select CSV File" or drag-drop a CSV
-3. **Use sample data**: A sample CSV is available at `/public/sample-contacts.csv`
+3. **Use sample data**: A sample CSV is available at `/public/Sample-CRM-Records.csv`
 4. **Review data**: Check the preview table for accuracy
 5. **Process**: Click "Process Data" to start AI mapping
 6. **Export results**: Download as JSON or CSV
@@ -100,7 +100,7 @@ The system will intelligently map these fields to standard contact format.
 **Solution**:
 1. Ensure file is in CSV format (.csv extension)
 2. File should have column headers
-3. Try with the sample file first: `public/sample-contacts.csv`
+3. Try with the sample file first: `public/Sample-CRM-Records.csv`
 
 ### Processing Takes Too Long
 **Solution**:
@@ -115,7 +115,7 @@ The system will intelligently map these fields to standard contact format.
 - **Backend**: `server.js`
 - **LLM Service**: `services/llm-service.js`
 - **Configuration**: `.env.local`
-- **Sample data**: `public/sample-contacts.csv`
+- **Sample data**: `public/Sample-CRM-Records.csv`
 
 ## Key Features
 

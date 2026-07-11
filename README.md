@@ -192,4 +192,4 @@ The mock provider also acts as an **automatic fallback** — if Gemini or OpenRo
 *   **Error: `Cannot resolve module`**
     *   Run `pnpm install` in the project root to restore missing libraries.
 *   **CSV upload not loading preview:**
-    *   Verify the file extension is `.csv` and that the file contains column headers in the first row. Use the sample data located at `/public/sample-contacts.csv` to test the flow.
+    *   Verify the file extension is `.csv` and that the file contains column headers in the first row. Use the sample data located at `/public/Sample-CRM-Records.csv` to test the flow.
