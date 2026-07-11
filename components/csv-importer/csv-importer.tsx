@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Papa from 'papaparse';
 import { CSVUploadStep } from './steps/upload-step';
 import { CSVPreviewStep } from './steps/preview-step';
@@ -39,6 +39,14 @@ export interface ProcessingResult {
   };
 }
 
+export interface IncrementalBatch {
+  batchIndex: number;
+  totalBatches: number;
+  processed: CSVRow[];
+  skipped: CSVRow[];
+  errors: Array<{ error: string; originalData: CSVRow }>;
+}
+
 export function CSVImporter() {
   const [currentStep, setCurrentStep] = useState<Step>('upload');
   const [csvData, setCSVData] = useState<CSVRow[]>([]);
@@ -49,6 +57,8 @@ export function CSVImporter() {
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [incrementalResults, setIncrementalResults] = useState<CSVRow[]>([]);
+  const [streamStats, setStreamStats] = useState<{ imported: number; skipped: number; failed: number }>({ imported: 0, skipped: 0, failed: 0 });
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -84,6 +94,8 @@ export function CSVImporter() {
   const handleConfirmPreview = useCallback(async () => {
     setCurrentStep('processing');
     setError(null);
+    setIncrementalResults([]);
+    setStreamStats({ imported: 0, skipped: 0, failed: 0 });
     const startTime = Date.now();
     setProcessingStartTime(startTime);
 
@@ -100,66 +112,166 @@ export function CSVImporter() {
       return;
     }
 
-    const totalBatches = Math.ceil(csvData.length / batchSize);
-    setBatchProgress({ current: 0, total: totalBatches });
-    setProcessingStatus(`Preparing ${totalBatches} batch${totalBatches > 1 ? 'es' : ''}...`);
-
     const allProcessed: CSVRow[] = [];
     const allSkipped: CSVRow[] = [];
-    const allMappings: FieldMapping[] = [];
+    let combinedMappings: FieldMapping[] = [];
     let totalErrors = 0;
 
-    for (let i = 0; i < csvData.length; i += batchSize) {
-      const batch = csvData.slice(i, i + batchSize);
-      const batchIndex = Math.floor(i / batchSize) + 1;
-      
-      setProcessingStatus(`Processing batch ${batchIndex} of ${totalBatches}...`);
+    try {
+      const response = await fetch(`${apiUrl}/api/process-stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: csvData }),
+      });
 
-      try {
-        const response = await fetch(`${apiUrl}/api/process`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: batch }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Batch ${batchIndex} failed: ${response.statusText}`);
-        }
-
-        const result: ProcessingResult = await response.json();
-        allProcessed.push(...result.processed);
-        allSkipped.push(...result.skipped);
-        if (result.mappings && i === 0) allMappings.push(...result.mappings);
-        totalErrors += result.stats?.failed || 0;
-      } catch (err) {
-        allSkipped.push(...batch.map(row => ({
-          ...row,
-          reason: `Batch ${batchIndex} processing error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-        })));
-        totalErrors += batch.length;
+      if (!response.ok) {
+        throw new Error(`Stream endpoint failed: ${response.statusText}`);
       }
 
-      setBatchProgress({ current: batchIndex, total: totalBatches });
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body for streaming');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let currentEvent = '';
+        let currentData = '';
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            currentData = line.slice(6).trim();
+          } else if (line === '' && currentEvent && currentData) {
+            // Process the event
+            try {
+              const payload = JSON.parse(currentData);
+
+              if (currentEvent === 'start') {
+                const totalBatches = Math.ceil(payload.total / 30);
+                setBatchProgress({ current: 0, total: totalBatches });
+                setProcessingStatus(`Processing 0 of ${totalBatches} batches...`);
+              } else if (currentEvent === 'batch') {
+                const batch = payload;
+                allProcessed.push(...batch.processed);
+                allSkipped.push(...batch.skipped);
+                totalErrors += (batch.errors || []).length;
+
+                setBatchProgress({ current: batch.batchIndex, total: batch.totalBatches });
+                setProcessingStatus(`Processing batch ${batch.batchIndex} of ${batch.totalBatches}...`);
+                setIncrementalResults([...allProcessed]);
+                setStreamStats({
+                  imported: allProcessed.length,
+                  skipped: allSkipped.length,
+                  failed: totalErrors,
+                });
+              } else if (currentEvent === 'complete') {
+                combinedMappings = payload.mappings || [];
+                setBatchProgress({ current: 1, total: 1 });
+                setProcessingStatus('Processing complete');
+
+                const processingTime = Date.now() - startTime;
+                const combinedResult: ProcessingResult = {
+                  processed: allProcessed,
+                  skipped: allSkipped,
+                  mappings: combinedMappings,
+                  processingTime,
+                  stats: {
+                    total: csvData.length,
+                    success: allProcessed.length,
+                    failed: totalErrors,
+                    skipped: allSkipped.length,
+                  },
+                };
+
+                setProcessingResult(combinedResult);
+                setProcessingStatus('Processing complete');
+                await new Promise(r => setTimeout(r, 500));
+                setCurrentStep('review');
+              }
+            } catch {
+              // Ignore malformed SSE events
+            }
+
+            currentEvent = '';
+            currentData = '';
+          }
+        }
+      }
+    } catch (err) {
+      // Fallback: if streaming fails, use batch-by-batch approach
+      setProcessingStatus('Stream failed, falling back to batch processing...');
+      const totalBatches = Math.ceil(csvData.length / batchSize);
+      setBatchProgress({ current: 0, total: totalBatches });
+
+      for (let i = 0; i < csvData.length; i += batchSize) {
+        const batch = csvData.slice(i, i + batchSize);
+        const batchIndex = Math.floor(i / batchSize) + 1;
+
+        setProcessingStatus(`Processing batch ${batchIndex} of ${totalBatches}...`);
+
+        try {
+          const fallbackRes = await fetch(`${apiUrl}/api/process`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows: batch }),
+          });
+
+          if (!fallbackRes.ok) {
+            throw new Error(`Batch ${batchIndex} failed: ${fallbackRes.statusText}`);
+          }
+
+          const result: ProcessingResult = await fallbackRes.json();
+          allProcessed.push(...result.processed);
+          allSkipped.push(...result.skipped);
+          if (result.mappings && i === 0) combinedMappings.push(...result.mappings);
+          totalErrors += result.stats?.failed || 0;
+
+          setIncrementalResults([...allProcessed]);
+          setStreamStats({
+            imported: allProcessed.length,
+            skipped: allSkipped.length,
+            failed: totalErrors,
+          });
+        } catch (fallbackErr) {
+          allSkipped.push(...batch.map(row => ({
+            ...row,
+            reason: `Batch ${batchIndex} processing error: ${fallbackErr instanceof Error ? fallbackErr.message : 'Unknown error'}`,
+          })));
+          totalErrors += batch.length;
+        }
+
+        setBatchProgress({ current: batchIndex, total: totalBatches });
+      }
+
+      const processingTime = Date.now() - startTime;
+      const combinedResult: ProcessingResult = {
+        processed: allProcessed,
+        skipped: allSkipped,
+        mappings: combinedMappings,
+        processingTime,
+        stats: {
+          total: csvData.length,
+          success: allProcessed.length,
+          failed: totalErrors,
+          skipped: allSkipped.length,
+        },
+      };
+
+      setProcessingResult(combinedResult);
+      setProcessingStatus('Processing complete');
+      await new Promise(r => setTimeout(r, 300));
+      setCurrentStep('review');
     }
-
-    const processingTime = Date.now() - startTime;
-    const combinedResult: ProcessingResult = {
-      processed: allProcessed,
-      skipped: allSkipped,
-      mappings: allMappings,
-      processingTime,
-      stats: {
-        total: csvData.length,
-        success: allProcessed.length,
-        failed: totalErrors,
-        skipped: allSkipped.length,
-      },
-    };
-
-    setProcessingResult(combinedResult);
-    setProcessingStatus('Processing complete');
-    setCurrentStep('review');
-  }, [csvData, headers, batchSize]);
+  }, [csvData, batchSize]);
 
   const handleReset = useCallback(() => {
     setCurrentStep('upload');
@@ -170,37 +282,55 @@ export function CSVImporter() {
   }, []);
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
+    <div className="w-full max-w-6xl mx-auto">
       {/* Step Indicator */}
-      <div className="mb-8 flex items-center justify-between" role="navigation" aria-label="Import wizard steps">
-        <div className="flex w-full items-center gap-4">
-          {['upload', 'preview', 'processing', 'review', 'results'].map((step, index) => (
-            <div key={step} className="flex items-center">
-              <div
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors ${
-                  currentStep === step
-                    ? 'bg-[#f06a38] text-white'
-                    : ['upload', 'preview', 'processing', 'review', 'results'].indexOf(currentStep) > index
-                    ? 'bg-green-500 text-white'
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                {index + 1}
-              </div>
-              <span className="ml-2 hidden text-sm font-medium text-foreground sm:inline">
-                {step === 'review' ? 'Review' : step.charAt(0).toUpperCase() + step.slice(1)}
-              </span>
-              {index < 4 && (
-                <div
-                  className={`ml-4 h-1 flex-1 ${
-                    ['upload', 'preview', 'processing', 'review', 'results'].indexOf(currentStep) > index
-                      ? 'bg-green-500'
-                      : 'bg-muted'
-                  }`}
-                />
-              )}
+      <div className="mb-4 flex flex-col items-center gap-2">
+        {/* Pill */}
+        <div
+          className="leading-[1em] rounded-lg text-[14px] lg:text-[20px] border-[2px] bg-[#386e67] border-[#79c2b8] w-fit flex items-center p-3 pr-5"
+          role="navigation"
+          aria-label="Import wizard steps"
+        >
+          <div className="bg-white/20 p-1 rounded-[50%] mr-2">
+            <div className="bg-white/50 p-1 rounded-[50%]">
+              <div className="w-[7px] h-[7px] rounded-[50%] bg-white" />
             </div>
-          ))}
+          </div>
+          <div className="flex items-center gap-5">
+            {['upload', 'preview', 'processing', 'review', 'results'].map((step, index) => {
+              const isActive = currentStep === step;
+              const isCompleted = ['upload', 'preview', 'processing', 'review', 'results'].indexOf(currentStep) > index;
+              return (
+                <React.Fragment key={step}>
+                  <span className={`w-8 text-center font-semibold ${
+                    isActive ? 'text-[#F97316]' : isCompleted ? 'text-white/80' : 'text-white/40'
+                  }`}>
+                    {index + 1}
+                  </span>
+                  {index < 4 && <span className="w-3 h-[1px] bg-white/20" />}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+        {/* Labels */}
+        <div className="flex gap-5">
+          <div className="w-[-5px] flex-shrink-0" />
+          {['upload', 'preview', 'processing', 'review', 'results'].map((step, index) => {
+            const isActive = currentStep === step;
+            const isCompleted = ['upload', 'preview', 'processing', 'review', 'results'].indexOf(currentStep) > index;
+            const label = step === 'review' ? 'Review' : step.charAt(0).toUpperCase() + step.slice(1);
+            return (
+              <React.Fragment key={step}>
+                <span className={`w-8 text-center text-xs whitespace-nowrap ${
+                  isActive ? 'text-[#F97316] font-semibold' : isCompleted ? 'text-white/80' : 'text-white/50'
+                }`}>
+                  {label}
+                </span>
+                {index < 4 && <span className="w-3 flex-shrink-0" />}
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
 
@@ -212,7 +342,7 @@ export function CSVImporter() {
       )}
 
       {/* Step Content */}
-      <div ref={contentRef} tabIndex={-1} className="rounded-lg border border-border bg-card p-6 shadow-sm outline-none" aria-live="polite" aria-atomic="true">
+      <div ref={contentRef} tabIndex={-1} className="rounded-lg border border-border bg-card p-8 shadow-card outline-none" aria-live="polite" aria-atomic="true">
         {currentStep === 'upload' && (
           <CSVUploadStep onFileUpload={handleFileUpload} isUploading={isUploading} />
         )}
@@ -228,6 +358,8 @@ export function CSVImporter() {
           <ProcessingStep 
             status={processingStatus}
             batchProgress={batchProgress}
+            incrementalResults={incrementalResults}
+            streamStats={streamStats}
           />
         )}
         {currentStep === 'review' && processingResult && (

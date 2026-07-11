@@ -126,7 +126,7 @@ export function CSVUploadStep({ onFileUpload, isUploading }: CSVUploadStepProps)
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
-          group relative rounded-2xl border-2 border-dashed p-10 text-center
+          group relative rounded-lg border-2 border-dashed p-6 text-center
           transition-all duration-300 cursor-pointer outline-none
           hover:-translate-y-0.5
           focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
@@ -140,7 +140,7 @@ export function CSVUploadStep({ onFileUpload, isUploading }: CSVUploadStepProps)
           <div
             className={`
               flex items-center justify-center w-14 h-14 rounded-xl
-              bg-[#F8FAFC] dark:bg-muted border border-[#E5E7EB] dark:border-border
+              bg-muted border border-border
               transition-transform duration-300
               group-hover:scale-105
               ${dragOver ? 'scale-110' : ''}
