@@ -99,26 +99,13 @@ export function CSVImporter() {
     const startTime = Date.now();
     setProcessingStartTime(startTime);
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
-    // Check server availability first
-    try {
-      const health = await fetch(`${apiUrl}/api/health`, { method: 'GET', signal: AbortSignal.timeout(5000) });
-      if (!health.ok) throw new Error('Server not ready');
-    } catch {
-      setError('Backend server is not running. Start it with: npm run server (in a separate terminal)');
-      setCurrentStep('upload');
-      setProcessingStartTime(null);
-      return;
-    }
-
     const allProcessed: CSVRow[] = [];
     const allSkipped: CSVRow[] = [];
     let combinedMappings: FieldMapping[] = [];
     let totalErrors = 0;
 
     try {
-      const response = await fetch(`${apiUrl}/api/process-stream`, {
+      const response = await fetch('/api/process-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows: csvData }),
@@ -219,7 +206,7 @@ export function CSVImporter() {
         setProcessingStatus(`Processing batch ${batchIndex} of ${totalBatches}...`);
 
         try {
-          const fallbackRes = await fetch(`${apiUrl}/api/process`, {
+          const fallbackRes = await fetch('/api/process', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ rows: batch }),
