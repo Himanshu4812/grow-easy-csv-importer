@@ -26,6 +26,30 @@ An enterprise-grade CSV ingestion pipeline for the **GrowEasy CRM** platform. Us
 
 ---
 
+## Screenshots
+
+![Upload Page — Drag and drop or select a CSV file.](/images/Upload%20Page.png)
+
+*Upload Step — Drag and drop or select a CSV file for processing.*
+
+![Preview Step — Review the parsed CSV data in a virtualized table.](/images/Preview.png)
+
+*Preview Step — Review the parsed CSV data before processing.*
+
+![Mapping Review — AI-inferred field mappings with confidence scores.](/images/Review.png)
+
+*Mapping Review — AI-inferred field mappings with confidence scores before finalizing.*
+
+![Processing Step — Watch records appear live as batches complete.](/images/Processing.png)
+
+*Processing Step — Live streaming results with real-time stats.*
+
+![Results Step — Virtualized results table with JSON/CSV export.](/images/Results.png)
+
+*Results Step — Export processed data as JSON or CSV.*
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -36,6 +60,7 @@ An enterprise-grade CSV ingestion pipeline for the **GrowEasy CRM** platform. Us
 | CSV Parsing | PapaParse (client-side) |
 | Virtualization | `@tanstack/react-virtual` |
 | Testing | Jest 30, Supertest |
+| Animation | `motion` (React) |
 | Font | Manrope (400–800 via next/font) |
 
 ---
@@ -86,7 +111,9 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 ### Run
 
 ```bash
-pnpm run dev:all
+pnpm run dev         # frontend only (port 3000)
+pnpm run server      # backend only (port 3001)
+pnpm run dev:all     # frontend + backend concurrently
 ```
 
 - Frontend: `http://localhost:3000`
@@ -189,6 +216,7 @@ grow-easy-csv-importer/
 │   │       ├── processing-step.tsx     # Live stream stats + preview
 │   │       ├── mapping-review-step.tsx # Field mapping confidence review
 │   │       └── results-step.tsx        # Virtualized results + export
+│   ├── blur-text.tsx           # Animated title with blur-in effect
 │   ├── groweasy-logo.tsx
 │   ├── dark-mode-toggle.tsx
 │   └── ui/button.tsx
