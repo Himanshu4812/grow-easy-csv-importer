@@ -192,6 +192,8 @@ F
 │   ├── 📄 Test-With-Skipped.csv       # Test CSV with skipped record (no email/phone)
 │   └── 🖼️ images/                     # README screenshots
 │
+├── 📁 archive                         # Archived documentation
+│
 ├── 📄 jest.config.js                  # Jest configuration
 ├── 📄 package.json                    # Project metadata & scripts
 └── 📄 README.md                       # Documentation
