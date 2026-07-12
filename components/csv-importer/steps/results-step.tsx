@@ -1,7 +1,7 @@
 'use client';
 
 import { Download, CheckCircle, AlertCircle, RefreshCw, TrendingUp, Clock, MailIcon } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface ProcessingResult {
@@ -23,6 +23,15 @@ interface ResultsStepProps {
 }
 
 const ROW_HEIGHT = 44;
+const cellClass = "px-4 py-3 text-foreground text-sm truncate flex items-center";
+
+function calcColumnWidths(headers: string[], rows: Record<string, string>[], minW = 120, maxW = 300): number[] {
+  const samples = rows.slice(0, Math.min(rows.length, 20));
+  return headers.map(h => {
+    const maxLen = Math.max(h.length, ...samples.map(r => (r[h] || '').length), 8);
+    return Math.max(minW, Math.min(maxW, maxLen * 8 + 32));
+  });
+}
 
 export function ResultsStep({ result, processingTime, onReset }: ResultsStepProps) {
   const [showSkipped, setShowSkipped] = useState(false);
@@ -34,6 +43,18 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
 
   const processedHeaders = result.processed.length > 0 ? Object.keys(result.processed[0]) : [];
   const skippedHeaders = result.skipped.length > 0 ? Object.keys(result.skipped[0]) : [];
+
+  const processedWidths = useMemo(
+    () => calcColumnWidths(processedHeaders, result.processed),
+    [processedHeaders, result.processed]
+  );
+  const gridCols = `50px ${processedWidths.map(w => `${w}px`).join(' ')}`;
+
+  const skippedWidths = useMemo(
+    () => calcColumnWidths(skippedHeaders, result.skipped),
+    [skippedHeaders, result.skipped]
+  );
+  const skippedGridCols = `50px ${skippedWidths.map(w => `${w}px`).join(' ')}`;
 
   const processedVirtualizer = useVirtualizer({
     count: result.processed.length,
@@ -161,54 +182,72 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
             <CheckCircle className="h-5 w-5 text-green-600" />
             Processed Records ({result.processed.length})
           </h3>
-          <div className="rounded-lg border border-border overflow-hidden">
-            {/* Header */}
-            <div
-              className="grid bg-muted border-b border-border sticky top-0 z-10"
-              style={{ gridTemplateColumns: `50px repeat(${processedHeaders.length}, minmax(120px, 1fr))` }}
-            >
-              <div className="px-4 py-3 text-left font-semibold text-foreground text-sm">#</div>
-              {processedHeaders.map((key) => (
-                <div key={key} className="px-4 py-3 text-left font-semibold text-foreground text-sm truncate">
-                  {key}
-                </div>
-              ))}
-            </div>
-            {/* Body */}
+          <div className="rounded-lg border border-border">
             <div
               ref={processedContainerRef}
               className="overflow-auto"
               style={{ maxHeight: '400px' }}
             >
-              <div style={{ height: `${processedVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+              {/* Sticky Header */}
+              <div className="sticky top-0 z-10 bg-muted" style={{ minWidth: 'max-content' }}>
+                <div
+                  className="hidden md:grid border-b border-border"
+                  style={{ gridTemplateColumns: gridCols }}
+                >
+                  <div className={cellClass}>#</div>
+                  {processedHeaders.map((key) => (
+                    <div key={key} className={cellClass}>
+                      {key}
+                    </div>
+                  ))}
+                </div>
+                <div className="md:hidden bg-muted border-b border-border px-4 py-3">
+                  <span className="font-semibold text-foreground text-sm">Processed ({result.processed.length})</span>
+                </div>
+              </div>
+              {/* Virtual rows */}
+              <div style={{ minWidth: 'max-content', height: `${processedVirtualizer.getTotalSize()}px`, position: 'relative' }}>
                 {processedVirtualizer.getVirtualItems().map((virtualItem) => {
                   const row = result.processed[virtualItem.index];
                   return (
                     <div
                       key={virtualItem.key}
-                      className="grid border-b border-border hover:bg-muted/50 transition-colors"
+                      className="border-b border-border hover:bg-muted/50 transition-colors"
                       style={{
                         position: 'absolute',
                         top: 0,
                         left: 0,
-                        width: '100%',
+                        minWidth: 'max-content',
                         height: `${virtualItem.size}px`,
                         transform: `translateY(${virtualItem.start}px)`,
-                        gridTemplateColumns: `50px repeat(${processedHeaders.length}, minmax(120px, 1fr))`,
                       }}
                     >
-                      <div className="px-4 py-3 text-muted-foreground font-medium text-sm flex items-center">
-                        {virtualItem.index + 1}
-                      </div>
-                      {processedHeaders.map((key) => (
-                        <div
-                          key={`${virtualItem.index}-${key}`}
-                          className="px-2 py-1.5 text-foreground text-sm truncate flex items-center"
-                          title={row[key] || ''}
-                        >
-                          {row[key] || '-'}
+                      {/* Desktop row */}
+                <div
+                  className="hidden md:grid"
+                  style={{
+                    height: `${ROW_HEIGHT}px`,
+                    gridTemplateColumns: gridCols,
+                  }}
+                >
+                        <div className={`${cellClass} text-muted-foreground font-medium`}>
+                          {virtualItem.index + 1}
                         </div>
-                      ))}
+                        {processedHeaders.map((key) => (
+                          <div
+                            key={`${virtualItem.index}-${key}`}
+                            className={cellClass}
+                            title={row[key] || ''}
+                          >
+                            {row[key] || '-'}
+                          </div>
+                        ))}
+                      </div>
+                      {/* Mobile row */}
+                      <div className="md:hidden flex items-center px-4 h-[44px] hover:bg-muted/50 transition-colors gap-3">
+                        <span className="text-muted-foreground font-medium text-sm w-6 flex-shrink-0">{virtualItem.index + 1}</span>
+                        <span className="flex-1 text-foreground text-sm truncate">{row[processedHeaders[0]] || '-'}</span>
+                      </div>
                     </div>
                   );
                 })}
@@ -236,54 +275,75 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
             Skipped Records ({result.skipped.length})
           </button>
           {showSkipped && (
-            <div id="skipped-records-table" className="rounded-lg border border-yellow-200 dark:border-yellow-900 overflow-hidden">
-              {/* Header */}
-              <div
-                className="grid bg-yellow-100 dark:bg-yellow-900/30 border-b border-yellow-200 dark:border-yellow-900"
-                style={{ gridTemplateColumns: `50px repeat(${skippedHeaders.length}, minmax(120px, 1fr))` }}
-              >
-                <div className="px-4 py-3 text-left font-semibold text-foreground text-sm">#</div>
-                {skippedHeaders.map((key) => (
-                  <div key={key} className="px-4 py-3 text-left font-semibold text-foreground text-sm truncate">
-                    {key}
-                  </div>
-                ))}
-              </div>
-              {/* Body */}
+            <div id="skipped-records-table" className="rounded-lg border border-yellow-200 dark:border-yellow-900">
               <div
                 ref={skippedContainerRef}
                 className="overflow-auto bg-yellow-50 dark:bg-yellow-950/20"
                 style={{ maxHeight: '400px' }}
               >
+                {/* Sticky Header */}
+                <div className="sticky top-0 z-10">
+                  <div className="absolute inset-0 pointer-events-none bg-yellow-100 dark:bg-yellow-900/30" style={{ width: '9999px' }} />
+                  <div className="relative">
+                    <div
+                      className="hidden md:grid border-b border-yellow-200 dark:border-yellow-900"
+                      style={{ gridTemplateColumns: skippedGridCols }}
+                    >
+                      <div className={cellClass}>#</div>
+                      {skippedHeaders.map((key) => (
+                        <div key={key} className={cellClass}>
+                          {key}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="md:hidden border-b border-yellow-200 dark:border-yellow-900 px-4 py-3">
+                      <span className="font-semibold text-foreground text-sm">Skipped ({result.skipped.length})</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Virtual rows */}
                 <div style={{ height: `${skippedVirtualizer.getTotalSize()}px`, position: 'relative' }}>
                   {skippedVirtualizer.getVirtualItems().map((virtualItem) => {
                     const row = result.skipped[virtualItem.index];
                     return (
                       <div
                         key={virtualItem.key}
-                        className="grid border-b border-yellow-200 dark:border-yellow-900"
+                        className="border-b border-yellow-200 dark:border-yellow-900"
                         style={{
                           position: 'absolute',
                           top: 0,
                           left: 0,
-                          width: '100%',
+                        minWidth: 'max-content',
                           height: `${virtualItem.size}px`,
                           transform: `translateY(${virtualItem.start}px)`,
-                          gridTemplateColumns: `50px repeat(${skippedHeaders.length}, minmax(120px, 1fr))`,
                         }}
                       >
-                        <div className="px-4 py-3 text-muted-foreground font-medium text-sm flex items-center">
-                          {virtualItem.index + 1}
-                        </div>
-                        {skippedHeaders.map((key) => (
+                        {/* Desktop row */}
                           <div
-                            key={`${virtualItem.index}-${key}`}
-                            className="px-2 py-1.5 text-foreground text-sm truncate flex items-center"
-                            title={row[key] || ''}
+                            className="hidden md:grid"
+                            style={{
+                              height: `${ROW_HEIGHT}px`,
+                              gridTemplateColumns: skippedGridCols,
+                            }}
                           >
-                            {row[key] || '-'}
+                          <div className={`${cellClass} text-muted-foreground font-medium`}>
+                            {virtualItem.index + 1}
                           </div>
-                        ))}
+                          {skippedHeaders.map((key) => (
+                            <div
+                              key={`${virtualItem.index}-${key}`}
+                              className={cellClass}
+                              title={row[key] || ''}
+                            >
+                              {row[key] || '-'}
+                            </div>
+                          ))}
+                        </div>
+                        {/* Mobile row */}
+                        <div className="md:hidden flex items-center px-4 h-[44px] hover:bg-muted/50 transition-colors gap-3">
+                          <span className="text-muted-foreground font-medium text-sm w-6 flex-shrink-0">{virtualItem.index + 1}</span>
+                          <span className="flex-1 text-foreground text-sm truncate">{row[skippedHeaders[0]] || '-'}</span>
+                        </div>
                       </div>
                     );
                   })}

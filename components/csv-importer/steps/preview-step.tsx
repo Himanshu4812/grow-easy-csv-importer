@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -16,6 +16,15 @@ interface CSVPreviewStepProps {
 }
 
 const COLLAPSED_HEIGHT = 44;
+const cellClass = "px-4 py-3 text-foreground text-sm truncate flex items-center";
+
+function calcColumnWidths(headers: string[], rows: Record<string, string>[], minW = 120, maxW = 300): number[] {
+  const samples = rows.slice(0, Math.min(rows.length, 20));
+  return headers.map(h => {
+    const maxLen = Math.max(h.length, ...samples.map(r => (r[h] || '').length), 8);
+    return Math.max(minW, Math.min(maxW, maxLen * 8 + 32));
+  });
+}
 
 export function CSVPreviewStep({
   headers,
@@ -24,7 +33,16 @@ export function CSVPreviewStep({
   onCancel,
 }: CSVPreviewStepProps) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [detailCols, setDetailCols] = useState(2);
   const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const update = () => setDetailCols(mq.matches ? 3 : 2);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   const toggleRowExpanded = (index: number) => {
     setExpandedRows(prev => {
@@ -37,8 +55,8 @@ export function CSVPreviewStep({
 
   const getRowHeight = (index: number) => {
     if (!expandedRows.has(index)) return COLLAPSED_HEIGHT;
-    const detailRows = Math.ceil(headers.length / 2);
-    return COLLAPSED_HEIGHT + 32 + detailRows * 36 + (detailRows - 1) * 12;
+    const detailRows = Math.ceil(headers.length / detailCols);
+    return COLLAPSED_HEIGHT + 32 + detailRows * 56 + (detailRows - 1) * 12;
   };
 
   const virtualizer = useVirtualizer({
@@ -52,7 +70,11 @@ export function CSVPreviewStep({
     virtualizer.measure();
   }, [expandedRows, virtualizer]);
 
-  const gridCols = `50px repeat(${headers.length}, minmax(140px, 1fr)) 40px`;
+  const colWidths = useMemo(
+    () => calcColumnWidths(headers, data),
+    [headers, data]
+  );
+  const gridCols = `50px ${colWidths.map(w => `${w}px`).join(' ')} 40px`;
 
   return (
     <div className="space-y-6">
@@ -84,31 +106,31 @@ export function CSVPreviewStep({
       </div>
 
       {/* Virtualized Table */}
-      <div className="rounded-lg border border-border overflow-hidden">
-        {/* Sticky Header */}
-        <div
-          className="grid bg-muted border-b border-border sticky top-0 z-10"
-          style={{ gridTemplateColumns: gridCols }}
-        >
-          <div className="px-4 py-3 text-left font-semibold text-foreground text-sm">#</div>
-          {headers.map((header) => (
-            <div
-              key={header}
-              className="px-4 py-3 text-left font-semibold text-foreground text-sm truncate"
-            >
-              {header}
-            </div>
-          ))}
-          <div className="px-4 py-3" />
-        </div>
-
-        {/* Scrollable Body */}
+      <div className="rounded-lg border border-border">
+        {/* Single scroll container — header and body scroll together */}
         <div
           ref={tableContainerRef}
           className="overflow-auto"
           style={{ maxHeight: '400px' }}
         >
-          <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+          {/* Sticky Header — desktop + mobile */}
+          <div className="sticky top-0 z-10 bg-muted" style={{ minWidth: 'max-content' }}>
+              <div className="hidden md:grid border-b border-border" style={{ gridTemplateColumns: gridCols }}>
+                <div className={cellClass}>#</div>
+                {headers.map((header) => (
+                  <div key={header} className={cellClass}>
+                    {header}
+                  </div>
+                ))}
+                <div className="px-4 py-3 flex items-center" />
+            </div>
+            <div className="md:hidden bg-muted border-b border-border px-4 py-3">
+              <span className="font-semibold text-foreground text-sm">Rows ({data.length})</span>
+            </div>
+          </div>
+
+          {/* Virtual rows */}
+          <div style={{ minWidth: 'max-content', height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const rowIndex = virtualItem.index;
               const row = data[rowIndex];
@@ -116,32 +138,32 @@ export function CSVPreviewStep({
               return (
                 <div
                   key={virtualItem.key}
-                  className="border-b border-border"
+                  className="border-b border-border hover:bg-muted/50 transition-colors"
                   style={{
                     position: 'absolute',
                     top: 0,
                     left: 0,
-                    width: '100%',
+                    minWidth: 'max-content',
                     height: `${virtualItem.size}px`,
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  {/* Main row */}
+                  {/* Main row — desktop */}
                   <div
-                    className="grid hover:bg-muted/50 transition-colors cursor-pointer"
+                    className="hidden md:grid cursor-pointer"
                     style={{
                       height: `${COLLAPSED_HEIGHT}px`,
                       gridTemplateColumns: gridCols,
                     }}
                     onClick={() => toggleRowExpanded(rowIndex)}
                   >
-                    <div className="px-4 py-3 text-muted-foreground font-medium text-sm flex items-center">
+                    <div className={`${cellClass} text-muted-foreground font-medium`}>
                       {rowIndex + 1}
                     </div>
                     {headers.map((header) => (
                       <div
                         key={`${rowIndex}-${header}`}
-                        className="px-2 py-1.5 text-foreground text-sm truncate flex items-center"
+                        className={cellClass}
                         title={row[header] || ''}
                       >
                         {row[header] || '-'}
@@ -160,6 +182,20 @@ export function CSVPreviewStep({
                         )}
                       </button>
                     </div>
+                  </div>
+
+                  {/* Main row — mobile */}
+                  <div
+                    className="md:hidden flex items-center px-4 h-[44px] hover:bg-muted/50 transition-colors cursor-pointer gap-3"
+                    onClick={() => toggleRowExpanded(rowIndex)}
+                  >
+                    <span className="text-muted-foreground font-medium text-sm w-6 flex-shrink-0">{rowIndex + 1}</span>
+                    <span className="flex-1 text-foreground text-sm truncate">{row[headers[0]] || '-'}</span>
+                    {isExpanded ? (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    )}
                   </div>
 
                   {/* Expanded panel */}

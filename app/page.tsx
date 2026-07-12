@@ -24,9 +24,9 @@ export default function Page() {
               delay={200}
               animateBy="words"
               direction="top"
-              className="text-5xl font-bold text-white mb-4"
+              className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4"
             />
-            <p className="text-xl text-white/80 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg md:text-xl text-white/80 max-w-2xl mx-auto">
               Import and intelligently map your contacts into the GrowEasy CRM using AI.
             </p>
           </div>
