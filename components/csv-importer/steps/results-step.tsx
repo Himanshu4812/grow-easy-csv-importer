@@ -1,7 +1,7 @@
 'use client';
 
 import { Download, CheckCircle, AlertCircle, RefreshCw, TrendingUp, Clock, MailIcon } from 'lucide-react';
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface ProcessingResult {
@@ -23,7 +23,7 @@ interface ResultsStepProps {
 }
 
 const ROW_HEIGHT = 44;
-const cellClass = "px-4 py-3 text-foreground text-sm truncate flex items-center";
+const cellClass = "px-4 py-3 text-foreground text-sm truncate";
 
 function calcColumnWidths(headers: string[], rows: Record<string, string>[], minW = 120, maxW = 300): number[] {
   const samples = rows.slice(0, Math.min(rows.length, 20));
@@ -42,7 +42,7 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
   const timeInSeconds = Math.round(finalProcessingTime / 1000);
 
   const processedHeaders = result.processed.length > 0 ? Object.keys(result.processed[0]) : [];
-  const skippedHeaders = result.skipped.length > 0 ? Object.keys(result.skipped[0]) : [];
+  const skippedHeaders = result.skipped.length > 0 ? Object.keys(result.skipped[0]).filter(k => k !== 'rowIndex') : [];
 
   const processedWidths = useMemo(
     () => calcColumnWidths(processedHeaders, result.processed),
@@ -69,6 +69,14 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
     estimateSize: () => ROW_HEIGHT,
     overscan: 10,
   });
+
+  useEffect(() => {
+    if (showSkipped) {
+      requestAnimationFrame(() => {
+        skippedVirtualizer.measure();
+      });
+    }
+  }, [showSkipped, skippedVirtualizer]);
 
   const exportToJSON = () => {
     const data = {
@@ -190,13 +198,13 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
             >
               {/* Sticky Header */}
               <div className="sticky top-0 z-10 bg-muted" style={{ minWidth: 'max-content' }}>
-                <div
-                  className="hidden md:grid border-b border-border"
-                  style={{ gridTemplateColumns: gridCols }}
-                >
-                  <div className={cellClass}>#</div>
-                  {processedHeaders.map((key) => (
-                    <div key={key} className={cellClass}>
+                  <div
+                    className="hidden md:flex items-center border-b border-border"
+                    style={{ minWidth: 'max-content' }}
+                  >
+                    <div className={`${cellClass} flex-shrink-0`} style={{ width: '50px' }}>#</div>
+                  {processedHeaders.map((key, i) => (
+                    <div key={key} className={`${cellClass} flex-shrink-0`} style={{ width: `${processedWidths[i]}px` }}>
                       {key}
                     </div>
                   ))}
@@ -224,19 +232,20 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
                     >
                       {/* Desktop row */}
                 <div
-                  className="hidden md:grid"
+                  className="hidden md:flex items-center"
                   style={{
                     height: `${ROW_HEIGHT}px`,
-                    gridTemplateColumns: gridCols,
+                    minWidth: 'max-content',
                   }}
                 >
-                        <div className={`${cellClass} text-muted-foreground font-medium`}>
+                        <div className={`${cellClass} text-muted-foreground font-medium flex-shrink-0`} style={{ width: '50px' }}>
                           {virtualItem.index + 1}
                         </div>
-                        {processedHeaders.map((key) => (
+                        {processedHeaders.map((key, i) => (
                           <div
                             key={`${virtualItem.index}-${key}`}
-                            className={cellClass}
+                            className={`${cellClass} flex-shrink-0`}
+                            style={{ width: `${processedWidths[i]}px` }}
                             title={row[key] || ''}
                           >
                             {row[key] || '-'}
@@ -274,24 +283,23 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
             <AlertCircle className="h-5 w-5 text-yellow-600" />
             Skipped Records ({result.skipped.length})
           </button>
-          {showSkipped && (
-            <div id="skipped-records-table" className="rounded-lg border border-yellow-200 dark:border-yellow-900">
-              <div
-                ref={skippedContainerRef}
-                className="overflow-auto bg-yellow-50 dark:bg-yellow-950/20"
-                style={{ maxHeight: '400px' }}
-              >
+          <div id="skipped-records-table" className={`rounded-lg border border-yellow-200 dark:border-yellow-900 ${!showSkipped ? 'hidden' : ''}`}>
+            <div
+              ref={skippedContainerRef}
+              className="overflow-auto bg-yellow-50 dark:bg-yellow-950/20"
+              style={{ maxHeight: '400px' }}
+            >
+              {showSkipped && (
+                <>
                 {/* Sticky Header */}
-                <div className="sticky top-0 z-10">
-                  <div className="absolute inset-0 pointer-events-none bg-yellow-100 dark:bg-yellow-900/30" style={{ width: '9999px' }} />
-                  <div className="relative">
+                <div className="sticky top-0 z-10 bg-yellow-100 dark:bg-yellow-900/30" style={{ minWidth: 'max-content' }}>
                     <div
-                      className="hidden md:grid border-b border-yellow-200 dark:border-yellow-900"
-                      style={{ gridTemplateColumns: skippedGridCols }}
+                      className="hidden md:flex items-center border-b border-yellow-200 dark:border-yellow-900"
+                      style={{ minWidth: 'max-content' }}
                     >
-                      <div className={cellClass}>#</div>
-                      {skippedHeaders.map((key) => (
-                        <div key={key} className={cellClass}>
+                      <div className={`${cellClass} flex-shrink-0`} style={{ width: '50px' }}>#</div>
+                      {skippedHeaders.map((key, i) => (
+                        <div key={key} className={`${cellClass} flex-shrink-0`} style={{ width: `${skippedWidths[i]}px` }}>
                           {key}
                         </div>
                       ))}
@@ -299,7 +307,6 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
                     <div className="md:hidden border-b border-yellow-200 dark:border-yellow-900 px-4 py-3">
                       <span className="font-semibold text-foreground text-sm">Skipped ({result.skipped.length})</span>
                     </div>
-                  </div>
                 </div>
                 {/* Virtual rows */}
                 <div style={{ height: `${skippedVirtualizer.getTotalSize()}px`, position: 'relative' }}>
@@ -320,19 +327,20 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
                       >
                         {/* Desktop row */}
                           <div
-                            className="hidden md:grid"
+                            className="hidden md:flex items-center"
                             style={{
                               height: `${ROW_HEIGHT}px`,
-                              gridTemplateColumns: skippedGridCols,
+                              minWidth: 'max-content',
                             }}
                           >
-                          <div className={`${cellClass} text-muted-foreground font-medium`}>
+                          <div className={`${cellClass} text-muted-foreground font-medium flex-shrink-0`} style={{ width: '50px' }}>
                             {virtualItem.index + 1}
                           </div>
-                          {skippedHeaders.map((key) => (
+                          {skippedHeaders.map((key, i) => (
                             <div
                               key={`${virtualItem.index}-${key}`}
-                              className={cellClass}
+                              className={`${cellClass} flex-shrink-0`}
+                              style={{ width: `${skippedWidths[i]}px` }}
                               title={row[key] || ''}
                             >
                               {row[key] || '-'}
@@ -348,9 +356,10 @@ export function ResultsStep({ result, processingTime, onReset }: ResultsStepProp
                     );
                   })}
                 </div>
-              </div>
+                </>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
 
