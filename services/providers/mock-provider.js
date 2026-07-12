@@ -30,7 +30,7 @@ class MockProvider extends AIProvider {
       const extracted = this.mockExtractRow(row, i);
       const validated = this.validateExtractedRow(extracted);
 
-      if (validated.isValid && (extracted.email || extracted.mobile_without_country_code)) {
+      if (validated.isValid) {
         results.push({
           ...extracted,
           rowIndex: i,

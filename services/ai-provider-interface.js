@@ -37,11 +37,6 @@ class AIProvider {
     const DATA_SOURCES = ['leads_on_demand', 'meridian_tower', 'eden_park', 'varah_swamy', 'sarjapur_plots'];
     const errors = [];
 
-    // Require email OR mobile_without_country_code
-    if (!row.email && !row.mobile_without_country_code) {
-      errors.push('Must have either email or mobile_without_country_code');
-    }
-
     // Validate CRM status
     if (row.crm_status && !CRM_STATUSES.includes(row.crm_status)) {
       errors.push(
