@@ -115,7 +115,7 @@ F
 | 🎨 Tailwind CSS v4 | Styling |
 | 🤖 OpenRouter / Gemini / OpenAI | AI Processing |
 | 📄 PapaParse | CSV Parsing |
-| 🚀 Express.js | Backend API |
+| ▲ Next.js API Routes | Backend API |
 | 🧪 Jest + Supertest | Testing |
 | ⚡ TanStack Virtual | Large Dataset Rendering |
 
@@ -165,8 +165,6 @@ F
 │   ├── 📄 blur-text.tsx               # Animated heading
 │   ├── 📄 dark-mode-toggle.tsx        # Theme switch
 │   ├── 📄 groweasy-logo.tsx           # Brand logo
-│   └── 📁 ui
-│       └── 📄 button.tsx              # Reusable button component
 │
 ├── 📁 services
 │   ├── 📄 ai-provider-interface.js    # Base AI provider
@@ -191,9 +189,9 @@ F
 ├── 📁 public
 │   ├── 🖼️ icon.svg                    # Favicon
 │   ├── 📄 Sample-CRM-Records.csv      # Sample dataset
+│   ├── 📄 Test-With-Skipped.csv       # Test CSV with skipped record (no email/phone)
 │   └── 🖼️ images/                     # README screenshots
 │
-├── 📄 server.js                       # Express backend
 ├── 📄 jest.config.js                  # Jest configuration
 ├── 📄 package.json                    # Project metadata & scripts
 └── 📄 README.md                       # Documentation
@@ -225,22 +223,15 @@ OPENAI_API_KEY=...
 # Models (optional)
 OPENROUTER_MODEL=openai/gpt-4o-mini
 GEMINI_MODEL=gemini-1.5-flash
-
-# Ports
-PORT=3001
-NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
 ### Run
 
 ```bash
-pnpm run dev         # frontend only (port 3000)
-pnpm run server      # backend only (port 3001)
-pnpm run dev:all     # frontend + backend concurrently
+pnpm run dev         # single command — frontend + API routes (port 3000)
 ```
 
-- Frontend: `http://localhost:3000`
-- Backend: `http://localhost:3001`
+Open: `http://localhost:3000`
 
 ### Using Mock Provider (No API Key)
 
@@ -283,7 +274,7 @@ pnpm test
 
 ## 🔌 API Endpoints
 
-The backend exposes REST APIs for synchronous processing, real-time streaming, and health monitoring.
+Next.js API routes handle synchronous processing, real-time streaming, and health monitoring — no separate backend server required.
 
 | Method | Endpoint | Description |
 |:------:|:---------|:------------|
@@ -416,11 +407,9 @@ Common issues and their recommended solutions.
 
 | Issue | Solution |
 |:------|:---------|
-| 🚫 **Server not running** | Start the backend server in a separate terminal using `pnpm run server`. |
 | ⚠️ **All records skipped** | Set `AI_PROVIDER=mock` to verify the pipeline without requiring an API key. |
 | 🔑 **Invalid API Key** | Ensure the correct API key is configured in `.env` for the selected AI provider. |
 | 📂 **CSV Upload Failed** | Verify the file is a valid `.csv`, contains a header row, and is smaller than **5 MB**. |
-| 🌐 **Cannot connect to API** | Confirm the backend is running and `NEXT_PUBLIC_API_URL` points to the correct server address. |
 | 🧠 **AI Provider Unavailable** | The application automatically falls back to the Mock Provider if configured. Otherwise, check the provider's availability and API key. |
 
 > **Need more help?** Check the server logs or verify your environment configuration before reporting an issue.
