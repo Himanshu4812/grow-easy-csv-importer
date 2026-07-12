@@ -150,7 +150,11 @@ F
 ├── 📁 app
 │   ├── 📄 page.tsx                     # Landing page with GrowEasy branding
 │   ├── 📄 layout.tsx                   # Root layout, metadata & Manrope font
-│   └── 📄 globals.css                  # Global styles & design system
+│   ├── 📄 globals.css                  # Global styles & design system
+│   └── 📁 api                          # Next.js API routes
+│       ├── 📁 health                   # GET /api/health
+│       ├── 📁 process                  # POST /api/process
+│       └── 📁 process-stream           # POST /api/process-stream (SSE)
 │
 ├── 📁 components
 │   ├── 📁 csv-importer
@@ -193,6 +197,7 @@ F
 │   └── 🖼️ images/                     # README screenshots
 │
 ├── 📁 archive                         # Archived documentation
+├── 📁 docs                            # Provider & architecture docs
 │
 ├── 📄 jest.config.js                  # Jest configuration
 ├── 📄 package.json                    # Project metadata & scripts
